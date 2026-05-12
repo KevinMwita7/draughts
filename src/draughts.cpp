@@ -1,7 +1,7 @@
 ﻿// draughts.cpp : Defines the entry point for the application.
 //
 
-#include "draughts.h"
+#include "draughts/draughts.h"
 
 using namespace std;
 

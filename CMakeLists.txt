@@ -12,7 +12,9 @@ endif()
 project ("draughts")
 
 # Add source to this project's executable.
-add_executable (draughts "draughts.cpp" "draughts.h")
+add_executable (draughts "src/draughts.cpp")
+
+target_include_directories(draughts PRIVATE include)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET draughts PROPERTY CXX_STANDARD 20)
