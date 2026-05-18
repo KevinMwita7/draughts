@@ -12,7 +12,7 @@ endif()
 project ("draughts")
 
 # Add source to this project's executable.
-add_executable (draughts "src/draughts.cpp")
+add_executable (draughts "src/draughts.cpp" "include/draughts/types.h")
 
 target_include_directories(draughts PRIVATE include)
 
