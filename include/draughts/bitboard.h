@@ -5,6 +5,12 @@
 // Square layout (0-indexed, bit N of a Bitboard = square N).
 // BLACK starts on rows 0-2; WHITE starts on rows 5-7.
 //
+// Initial position (men only, no kings):
+//   bb[BLACK][MAN] = 0x00000FFF  (bits  0-11)
+//   bb[WHITE][MAN] = 0xFFF00000  (bits 20-31)
+//   occupied       = 0xFFF00FFF
+//
+//
 //        col:  0    1    2    3    4    5    6    7
 //   row 7:          28        29        30        31   (WHITE back rank)
 //   row 6:     24        25        26        27
@@ -44,98 +50,95 @@
 
 namespace draughts {
 
-// Single-square bitmask
+    // Single-square bitmask
 
-constexpr Bitboard sq_bb(Square s) noexcept { return Bitboard(1) << s; }
+    constexpr Bitboard sq_bb(Square s) noexcept { return Bitboard(1) << s; }
 
-// Rank (row) masks
-// rank_bb(r) covers the four playable squares on row r (0 = bottom, 7 = top).
-// Each row occupies exactly one nibble of the 32-bit Bitboard, so the mask is
-// always 0xF shifted left by r*4.
+    // Rank (row) masks
+    // rank_bb(r) covers the four playable squares on row r (0 = bottom, 7 = top).
+    // Each row occupies exactly one nibble of the 32-bit Bitboard, so the mask is
+    // always 0xF shifted left by r*4.
 
-constexpr Bitboard rank_bb(int r) noexcept { return Bitboard(0xF) << (r * 4); }
+    constexpr Bitboard rank_bb(int r) noexcept { return Bitboard(0xF) << (r * 4); }
 
-constexpr Bitboard ALL_SQUARES = rank_bb(0) | rank_bb(1) | rank_bb(2) | rank_bb(3)
-                                | rank_bb(4) | rank_bb(5) | rank_bb(6) | rank_bb(7);
-constexpr Bitboard EMPTY_BB    = ~ALL_SQUARES;
+    constexpr Bitboard ALL_SQUARES = 0xFFFFFFFFu;
 
-constexpr Bitboard RANK[8] = {
-    rank_bb(0), rank_bb(1), rank_bb(2), rank_bb(3),
-    rank_bb(4), rank_bb(5), rank_bb(6), rank_bb(7),
-};
+    constexpr Bitboard RANK[8] = {
+        rank_bb(0), rank_bb(1), rank_bb(2), rank_bb(3),
+        rank_bb(4), rank_bb(5), rank_bb(6), rank_bb(7),
+    };
 
-constexpr Bitboard BLACK_PROMO_RANK = RANK[7];
-constexpr Bitboard WHITE_PROMO_RANK = RANK[0];
+    constexpr Bitboard BLACK_PROMO_RANK = RANK[7];
+    constexpr Bitboard WHITE_PROMO_RANK = RANK[0];
 
-// Row-parity masks
+    // Row-parity masks
 
-constexpr Bitboard EVEN_ROWS = RANK[0] | RANK[2] | RANK[4] | RANK[6]; // cols 0,2,4,6
-constexpr Bitboard ODD_ROWS  = RANK[1] | RANK[3] | RANK[5] | RANK[7]; // cols 1,3,5,7
+    constexpr Bitboard EVEN_ROWS = RANK[0] | RANK[2] | RANK[4] | RANK[6]; // cols 0,2,4,6
+    constexpr Bitboard ODD_ROWS  = RANK[1] | RANK[3] | RANK[5] | RANK[7]; // cols 1,3,5,7
 
-// LEFT_EDGE: col-0 squares on even rows (no UP_LEFT or DOWN_LEFT neighbour).
-constexpr Bitboard LEFT_EDGE  = sq_bb(0) | sq_bb(8) | sq_bb(16) | sq_bb(24);
-// RIGHT_EDGE: col-7 squares on odd rows (no UP_RIGHT or DOWN_RIGHT neighbour).
-constexpr Bitboard RIGHT_EDGE = sq_bb(7) | sq_bb(15) | sq_bb(23) | sq_bb(31);
+    // LEFT_EDGE: col-0 squares on even rows (no UP_LEFT or DOWN_LEFT neighbour).
+    constexpr Bitboard LEFT_EDGE  = sq_bb(0) | sq_bb(8) | sq_bb(16) | sq_bb(24);
+    // RIGHT_EDGE: col-7 squares on odd rows (no UP_RIGHT or DOWN_RIGHT neighbour).
+    constexpr Bitboard RIGHT_EDGE = sq_bb(7) | sq_bb(15) | sq_bb(23) | sq_bb(31);
 
-// Diagonal shift functions
+    // Diagonal shift functions
 
-inline constexpr Bitboard shift_up_right  (Bitboard bb) noexcept {
-    return ((bb & EVEN_ROWS)              << 4)
-         | ((bb & ODD_ROWS & ~RIGHT_EDGE) << 5);
+    constexpr Bitboard shift_up_right  (Bitboard bb) noexcept {
+        return ((bb & EVEN_ROWS)              << 4)
+             | ((bb & ODD_ROWS & ~RIGHT_EDGE) << 5);
+    }
+    constexpr Bitboard shift_up_left   (Bitboard bb) noexcept {
+        return ((bb & EVEN_ROWS & ~LEFT_EDGE) << 3)
+             | ((bb & ODD_ROWS)               << 4);
+    }
+    constexpr Bitboard shift_down_right(Bitboard bb) noexcept {
+        return ((bb & ODD_ROWS & ~RIGHT_EDGE) >> 3)
+             | ((bb & EVEN_ROWS)              >> 4);
+    }
+    constexpr Bitboard shift_down_left (Bitboard bb) noexcept {
+        return ((bb & ODD_ROWS)               >> 4)
+             | ((bb & EVEN_ROWS & ~LEFT_EDGE) >> 5);
+    }
+
+    // Shift in all four diagonal directions at once (useful for king attack sets).
+    constexpr Bitboard shift_all(Bitboard bb) noexcept {
+        return shift_up_right(bb) | shift_up_left(bb)
+             | shift_down_right(bb) | shift_down_left(bb);
+    }
+
+    // Bit utilities
+
+    constexpr int    popcount(Bitboard bb)  noexcept { return std::popcount(bb); }
+    constexpr Square lsb     (Bitboard bb)  noexcept { return Square(std::countr_zero(bb)); }
+    // Clears the lowest set bit and returns its square index.
+    constexpr Square pop_lsb (Bitboard& bb) noexcept {
+        Square s = lsb(bb); bb &= bb - 1; return s;
+    }
+
+    // Coordinate conversion
+    // Board64to32[sq64] = -1 for non-playable squares.
+    // sq64 uses 0 = top-left of the 8x8 board (matches Board64to32 row order above).
+
+    constexpr int8_t Board64to32[64] = {
+        -1, 28, -1, 29, -1, 30, -1, 31,
+        24, -1, 25, -1, 26, -1, 27, -1,
+        -1, 20, -1, 21, -1, 22, -1, 23,
+        16, -1, 17, -1, 18, -1, 19, -1,
+        -1, 12, -1, 13, -1, 14, -1, 15,
+         8, -1,  9, -1, 10, -1, 11, -1,
+        -1,  4, -1,  5, -1,  6, -1,  7,
+         0, -1,  1, -1,  2, -1,  3, -1,
+    };
+
+    // Board32to64[sq32] gives the corresponding 8x8 square index.
+    constexpr int8_t Board32to64[32] = {
+        56, 58, 60, 62,
+        49, 51, 53, 55,
+        40, 42, 44, 46,
+        33, 35, 37, 39,
+        24, 26, 28, 30,
+        17, 19, 21, 23,
+         8, 10, 12, 14,
+         1,  3,  5,  7,
+    };
 }
-inline constexpr Bitboard shift_up_left   (Bitboard bb) noexcept {
-    return ((bb & EVEN_ROWS & ~LEFT_EDGE) << 3)
-         | ((bb & ODD_ROWS)               << 4);
-}
-inline constexpr Bitboard shift_down_right(Bitboard bb) noexcept {
-    return ((bb & ODD_ROWS & ~RIGHT_EDGE) >> 3)
-         | ((bb & EVEN_ROWS)              >> 4);
-}
-inline constexpr Bitboard shift_down_left (Bitboard bb) noexcept {
-    return ((bb & ODD_ROWS)               >> 4)
-         | ((bb & EVEN_ROWS & ~LEFT_EDGE) >> 5);
-}
-
-// Shift in all four diagonal directions at once (useful for king attack sets).
-inline constexpr Bitboard shift_all(Bitboard bb) noexcept {
-    return shift_up_right(bb) | shift_up_left(bb)
-         | shift_down_right(bb) | shift_down_left(bb);
-}
-
-// Bit utilities
-
-inline constexpr int    popcount(Bitboard bb)  noexcept { return std::popcount(bb); }
-inline constexpr Square lsb     (Bitboard bb)  noexcept { return Square(std::countr_zero(bb)); }
-// Clears the lowest set bit and returns its square index.
-inline constexpr Square pop_lsb (Bitboard& bb) noexcept {
-    Square s = lsb(bb); bb &= bb - 1; return s;
-}
-
-// Coordinate conversion
-// Board64to32[sq64] = -1 for non-playable squares.
-// sq64 uses 0 = top-left of the 8x8 board (matches Board64to32 row order above).
-
-constexpr int8_t Board64to32[64] = {
-    -1, 28, -1, 29, -1, 30, -1, 31,
-    24, -1, 25, -1, 26, -1, 27, -1,
-    -1, 20, -1, 21, -1, 22, -1, 23,
-    16, -1, 17, -1, 18, -1, 19, -1,
-    -1, 12, -1, 13, -1, 14, -1, 15,
-     8, -1,  9, -1, 10, -1, 11, -1,
-    -1,  4, -1,  5, -1,  6, -1,  7,
-     0, -1,  1, -1,  2, -1,  3, -1,
-};
-
-// Board32to64[sq32] gives the corresponding 8x8 square index.
-constexpr int8_t Board32to64[32] = {
-    56, 58, 60, 62,
-    49, 51, 53, 55,
-    40, 42, 44, 46,
-    33, 35, 37, 39,
-    24, 26, 28, 30,
-    17, 19, 21, 23,
-     8, 10, 12, 14,
-     1,  3,  5,  7,
-};
-
-} // namespace draughts
