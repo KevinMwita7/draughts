@@ -25,6 +25,7 @@ add_executable (draughts
     "include/draughts/notation.h"
     "include/draughts/protocol.h"
     "include/draughts/perft.h"
+    "src/zobrist.cpp"
 )
 
 target_include_directories(draughts PRIVATE include)
