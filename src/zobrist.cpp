@@ -22,7 +22,7 @@ void draughts::zobrist::init() {
 	SIDE_KEY = dist(gen);
 }
 
-uint64_t draughts::compute_hash(const Position& pos) {
+uint64_t draughts::compute_hash(const Position& pos) noexcept {
 	uint64_t hash = 0;
 	Bitboard occ = pos.occupied;
 
