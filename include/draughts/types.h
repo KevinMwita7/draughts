@@ -40,8 +40,10 @@ namespace draughts {
     struct Move {
         Square   from;
         Square   to;
-        Bitboard captured;   // bitboard of every square jumped over (all pieces removed)
-        bool     promotion;  // true when a man reaches the back rank
+        Bitboard captured;        // bitboard of every square jumped over (all pieces removed)
+        bool     promotion;       // true when a man reaches the back rank
+        Bitboard captured_kings  = 0;  // filled by do_move: subset of captured that were kings
+        uint8_t  prev_reversible = 0;  // filled by do_move: reversible counter before the move
 
         constexpr bool operator==(Move o) const noexcept {
             return from == o.from && to == o.to && captured == o.captured;

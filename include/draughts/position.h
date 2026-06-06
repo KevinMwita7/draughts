@@ -34,7 +34,7 @@ namespace draughts {
 
         // Mutation
 
-        void do_move  (Move m);
+        void do_move  (Move& m);
         void undo_move(Move m);  // m must be the move passed to the matching do_move
 
         // Recompute occupied / empty_sq from bb[][].

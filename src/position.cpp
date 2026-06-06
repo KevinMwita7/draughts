@@ -4,17 +4,19 @@
 
 namespace draughts {
 
-    void Position::do_move(Move m) {
+    void Position::do_move(Move& m) {
         const Color   us   = side_to_move;
         const Color   them = ~us;
         const PieceKind kind = (bb[us][KING] & sq_bb(m.from)) ? KING : MAN;
 
-        // Update hash before mutating bitboards (captured piece types still readable)
+        m.prev_reversible = reversible;
+        m.captured_kings  = bb[them][KING] & m.captured;
+
         hash ^= zobrist::piece_key(m.from, make_piece(us, kind));
         Bitboard caps = m.captured;
         while (caps) {
             Square s = pop_lsb(caps);
-            PieceKind ck = (bb[them][KING] & sq_bb(s)) ? KING : MAN;
+            PieceKind ck = (m.captured_kings & sq_bb(s)) ? KING : MAN;
             hash ^= zobrist::piece_key(s, make_piece(them, ck));
         }
         hash ^= zobrist::piece_key(m.to, make_piece(us, m.promotion ? KING : kind));
@@ -35,6 +37,39 @@ namespace draughts {
         side_to_move = them;
         ++ply;
         reversible = m.captured ? 0 : reversible + 1;
+    }
+
+    void Position::undo_move(Move m) {
+        const Color     us   = ~side_to_move;
+        const Color     them =  side_to_move;
+        const PieceKind kind = m.promotion ? KING
+                             : (bb[us][KING] & sq_bb(m.to)) ? KING : MAN;
+        const PieceKind orig = m.promotion ? MAN : kind;
+
+        hash ^= zobrist::piece_key(m.to, make_piece(us, kind));
+        Bitboard caps = m.captured;
+        while (caps) {
+            Square    s  = pop_lsb(caps);
+            PieceKind ck = (m.captured_kings & sq_bb(s)) ? KING : MAN;
+            hash ^= zobrist::piece_key(s, make_piece(them, ck));
+        }
+        hash ^= zobrist::piece_key(m.from, make_piece(us, orig));
+        hash ^= zobrist::SIDE_KEY;
+
+        if (m.promotion) {
+            bb[us][KING] &= ~sq_bb(m.to);
+            bb[us][MAN]  |=  sq_bb(m.to);
+        }
+        bb[us][orig]   ^= sq_bb(m.to) | sq_bb(m.from);
+        bb[them][KING] |= m.captured_kings;
+        bb[them][MAN]  |= m.captured & ~m.captured_kings;
+
+        occupied = bb[BLACK][MAN] | bb[BLACK][KING] | bb[WHITE][MAN] | bb[WHITE][KING];
+        empty_sq = ~occupied;
+
+        side_to_move = us;
+        --ply;
+        reversible = m.prev_reversible;
     }
 
     Piece Position::piece_on(Square s) const noexcept {
