@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for draughts, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.10)
+cmake_minimum_required (VERSION 3.14)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -11,9 +11,9 @@ endif()
 
 project ("draughts")
 
-# Add source to this project's executable.
-add_executable (draughts
-    "src/draughts.cpp"
+add_library(draughts_core STATIC
+    "src/zobrist.cpp"
+    "src/position.cpp"
     "include/draughts/types.h"
     "include/draughts/bitboard.h"
     "include/draughts/position.h"
@@ -25,13 +25,20 @@ add_executable (draughts
     "include/draughts/notation.h"
     "include/draughts/protocol.h"
     "include/draughts/perft.h"
-    "src/zobrist.cpp"
 )
 
-target_include_directories(draughts PRIVATE include)
+target_include_directories(draughts_core PUBLIC include)
+
+if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET draughts_core PROPERTY CXX_STANDARD 20)
+endif()
+
+add_executable(draughts "src/draughts.cpp")
+target_link_libraries(draughts PRIVATE draughts_core)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET draughts PROPERTY CXX_STANDARD 20)
 endif()
 
-# TODO: Add tests and install targets if needed.
+enable_testing()
+add_subdirectory(test)
