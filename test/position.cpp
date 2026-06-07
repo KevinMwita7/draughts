@@ -449,3 +449,126 @@ TEST_F(RebuildDerivedTest, OccupiedAndEmptySqAreDisjointAndCoverAllSquares) {
   EXPECT_EQ(pos.occupied & pos.empty_sq, Bitboard{0});
   EXPECT_EQ(pos.occupied | pos.empty_sq, ALL_SQUARES);
 }
+
+// ============================================================================
+// start_position
+// ============================================================================
+
+class StartPositionTest : public ::testing::Test {
+ protected:
+  void SetUp() override { zobrist::init(); }
+};
+
+// ---- piece bitboards --------------------------------------------------------
+
+TEST_F(StartPositionTest, BlackMenOnRows0To2) {
+  EXPECT_EQ(Position::start_position().bb[BLACK][MAN], Bitboard{0x00000FFF});
+}
+
+TEST_F(StartPositionTest, NoBlackKingsAtStart) {
+  EXPECT_EQ(Position::start_position().bb[BLACK][KING], Bitboard{0});
+}
+
+TEST_F(StartPositionTest, WhiteMenOnRows5To7) {
+  EXPECT_EQ(Position::start_position().bb[WHITE][MAN], Bitboard{0xFFF00000});
+}
+
+TEST_F(StartPositionTest, NoWhiteKingsAtStart) {
+  EXPECT_EQ(Position::start_position().bb[WHITE][KING], Bitboard{0});
+}
+
+// ---- derived fields ---------------------------------------------------------
+
+TEST_F(StartPositionTest, OccupiedIs24Squares) {
+  EXPECT_EQ(Position::start_position().occupied, Bitboard{0xFFF00FFF});
+}
+
+TEST_F(StartPositionTest, EmptySqIs8MiddleSquares) {
+  EXPECT_EQ(Position::start_position().empty_sq, Bitboard{0x000FF000});
+}
+
+TEST_F(StartPositionTest, OccupiedAndEmptySqCoverAllSquares) {
+  Position pos = Position::start_position();
+  EXPECT_EQ(pos.occupied | pos.empty_sq, ALL_SQUARES);
+  EXPECT_EQ(pos.occupied & pos.empty_sq, Bitboard{0});
+}
+
+// ---- piece counts -----------------------------------------------------------
+
+TEST_F(StartPositionTest, TwelveBlackPieces) {
+  EXPECT_EQ(Position::start_position().count(BLACK), 12);
+}
+
+TEST_F(StartPositionTest, TwelveWhitePieces) {
+  EXPECT_EQ(Position::start_position().count(WHITE), 12);
+}
+
+TEST_F(StartPositionTest, TwentyFourPiecesTotal) {
+  EXPECT_EQ(Position::start_position().total(), 24);
+}
+
+// ---- game state -------------------------------------------------------------
+
+TEST_F(StartPositionTest, BlackMovesFirst) {
+  EXPECT_EQ(Position::start_position().side_to_move, BLACK);
+}
+
+TEST_F(StartPositionTest, PlyIsZero) {
+  EXPECT_EQ(Position::start_position().ply, uint16_t{0});
+}
+
+TEST_F(StartPositionTest, ReversibleIsZero) {
+  EXPECT_EQ(Position::start_position().reversible, uint8_t{0});
+}
+
+// ---- hash -------------------------------------------------------------------
+
+TEST_F(StartPositionTest, HashIsConsistentWithComputeHash) {
+  Position pos = Position::start_position();
+  EXPECT_EQ(pos.hash, compute_hash(pos));
+}
+
+TEST_F(StartPositionTest, TwoCallsProduceSameHash) {
+  EXPECT_EQ(Position::start_position().hash, Position::start_position().hash);
+}
+
+// ============================================================================
+// empty_position
+// ============================================================================
+
+TEST(EmptyPositionTest, AllBitboardsAreZero) {
+  Position pos = Position::empty_position();
+  EXPECT_EQ(pos.bb[BLACK][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[BLACK][KING], Bitboard{0});
+  EXPECT_EQ(pos.bb[WHITE][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[WHITE][KING], Bitboard{0});
+}
+
+TEST(EmptyPositionTest, OccupiedIsZero) {
+  EXPECT_EQ(Position::empty_position().occupied, Bitboard{0});
+}
+
+TEST(EmptyPositionTest, EmptySqIsAllSquares) {
+  EXPECT_EQ(Position::empty_position().empty_sq, ALL_SQUARES);
+}
+
+TEST(EmptyPositionTest, TotalPieceCountIsZero) {
+  EXPECT_EQ(Position::empty_position().total(), 0);
+}
+
+TEST(EmptyPositionTest, BlackMovesFirst) {
+  EXPECT_EQ(Position::empty_position().side_to_move, BLACK);
+}
+
+TEST(EmptyPositionTest, PlyIsZero) {
+  EXPECT_EQ(Position::empty_position().ply, uint16_t{0});
+}
+
+TEST(EmptyPositionTest, ReversibleIsZero) {
+  EXPECT_EQ(Position::empty_position().reversible, uint8_t{0});
+}
+
+TEST(EmptyPositionTest, HashIsZero) {
+  // No pieces, BLACK to move: no Zobrist keys are XOR'd, so hash == 0.
+  EXPECT_EQ(Position::empty_position().hash, uint64_t{0});
+}

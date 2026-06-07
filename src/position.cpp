@@ -85,4 +85,26 @@ namespace draughts {
         return NO_PIECE;
     }
 
+    Position Position::start_position() {
+        Position pos{};
+        pos.bb[BLACK][MAN] = 0x00000FFF;
+        pos.bb[BLACK][KING] = 0;
+        pos.bb[WHITE][MAN] = 0xFFF00000;
+        pos.bb[WHITE][KING] = 0;
+        pos.occupied = pos.bb[BLACK][MAN] | pos.bb[BLACK][KING] |
+                       pos.bb[WHITE][MAN] | pos.bb[WHITE][KING];
+        pos.empty_sq = ~pos.occupied;
+        pos.side_to_move = BLACK;
+        pos.ply = 0;
+        pos.reversible = 0;
+        pos.hash = compute_hash(pos);
+        return pos;
+    }
+
+    Position Position::empty_position() {
+        Position pos{};
+        pos.empty_sq = ALL_SQUARES;
+        return pos;
+    }
+
 } // namespace draughts
