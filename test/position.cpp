@@ -342,3 +342,110 @@ TEST_F(UndoMoveTest, Reversible_RestoredAfterCapture) {
   pos.undo_move(m);
   EXPECT_EQ(pos.reversible, uint8_t{7});
 }
+
+// ============================================================================
+// rebuild_derived
+// ============================================================================
+
+class RebuildDerivedTest : public ::testing::Test {
+ protected:
+  // Build a position with bb[] set correctly but occupied/empty_sq left dirty.
+  static Position make_dirty(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
+                             Bitboard w_kings) {
+    Position pos{};
+    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][KING] = b_kings;
+    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][KING] = w_kings;
+    pos.occupied        = ALL_SQUARES;  // deliberately wrong
+    pos.empty_sq        = 0;            // deliberately wrong
+    return pos;
+  }
+};
+
+// ---- occupied ---------------------------------------------------------------
+
+TEST_F(RebuildDerivedTest, EmptyBoard_OccupiedIsZero) {
+  Position pos = make_dirty(0, 0, 0, 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, Bitboard{0});
+}
+
+TEST_F(RebuildDerivedTest, SingleBlackMan_OccupiedMatchesBitboard) {
+  Position pos = make_dirty(sq_bb(9), 0, 0, 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, sq_bb(9));
+}
+
+TEST_F(RebuildDerivedTest, SingleWhiteMan_OccupiedMatchesBitboard) {
+  Position pos = make_dirty(0, 0, sq_bb(21), 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, sq_bb(21));
+}
+
+TEST_F(RebuildDerivedTest, SingleBlackKing_OccupiedMatchesBitboard) {
+  Position pos = make_dirty(0, sq_bb(15), 0, 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, sq_bb(15));
+}
+
+TEST_F(RebuildDerivedTest, SingleWhiteKing_OccupiedMatchesBitboard) {
+  Position pos = make_dirty(0, 0, 0, sq_bb(28));
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, sq_bb(28));
+}
+
+TEST_F(RebuildDerivedTest, AllFourPieceTypes_OccupiedIsUnion) {
+  // One piece of each kind, all on distinct squares.
+  Bitboard b_men  = sq_bb(1);
+  Bitboard b_kings = sq_bb(3);
+  Bitboard w_men  = sq_bb(28);
+  Bitboard w_kings = sq_bb(30);
+  Position pos = make_dirty(b_men, b_kings, w_men, w_kings);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, b_men | b_kings | w_men | w_kings);
+}
+
+TEST_F(RebuildDerivedTest, StartLayout_OccupiedMatchesDocumentation) {
+  // Per bitboard.h: BLACK men on bits 0-11, WHITE men on bits 20-31.
+  Bitboard b_men  = 0x00000FFFu;
+  Bitboard w_men  = 0xFFF00000u;
+  Position pos = make_dirty(b_men, 0, w_men, 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, 0xFFF00FFFu);
+}
+
+TEST_F(RebuildDerivedTest, DirtyOccupied_IsOverwritten) {
+  Position pos = make_dirty(sq_bb(5), 0, sq_bb(17), 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied, sq_bb(5) | sq_bb(17));
+}
+
+// ---- empty_sq ---------------------------------------------------------------
+
+TEST_F(RebuildDerivedTest, EmptyBoard_EmptySqIsAllSquares) {
+  Position pos = make_dirty(0, 0, 0, 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.empty_sq, ALL_SQUARES);
+}
+
+TEST_F(RebuildDerivedTest, EmptySqIsComplementOfOccupied) {
+  Bitboard b_men  = sq_bb(0) | sq_bb(9);
+  Bitboard w_kings = sq_bb(25) | sq_bb(31);
+  Position pos = make_dirty(b_men, 0, 0, w_kings);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.empty_sq, ~pos.occupied);
+}
+
+TEST_F(RebuildDerivedTest, DirtyEmptySq_IsOverwritten) {
+  Position pos = make_dirty(sq_bb(7), 0, sq_bb(24), 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.empty_sq, ~(sq_bb(7) | sq_bb(24)));
+}
+
+TEST_F(RebuildDerivedTest, OccupiedAndEmptySqAreDisjointAndCoverAllSquares) {
+  Position pos = make_dirty(sq_bb(1) | sq_bb(2), 0, sq_bb(29) | sq_bb(30), 0);
+  pos.rebuild_derived();
+  EXPECT_EQ(pos.occupied & pos.empty_sq, Bitboard{0});
+  EXPECT_EQ(pos.occupied | pos.empty_sq, ALL_SQUARES);
+}

@@ -72,6 +72,11 @@ namespace draughts {
         reversible = m.prev_reversible;
     }
 
+    void Position::rebuild_derived() noexcept {
+        occupied = bb[BLACK][MAN] | bb[BLACK][KING] | bb[WHITE][MAN] | bb[WHITE][KING];
+        empty_sq = ~occupied;
+    }
+
     Piece Position::piece_on(Square s) const noexcept {
         Bitboard mask = sq_bb(s);
         for (int c = 0; c < 2; ++c)
