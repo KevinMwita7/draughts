@@ -572,3 +572,118 @@ TEST(EmptyPositionTest, HashIsZero) {
   // No pieces, BLACK to move: no Zobrist keys are XOR'd, so hash == 0.
   EXPECT_EQ(Position::empty_position().hash, uint64_t{0});
 }
+
+// ============================================================================
+// pieces / men / kings
+// ============================================================================
+
+// Helper: position with one piece of each kind on distinct squares.
+static Position make_mixed() {
+  Position pos{};
+  pos.bb[BLACK][MAN]  = sq_bb(1);
+  pos.bb[BLACK][KING] = sq_bb(3);
+  pos.bb[WHITE][MAN]  = sq_bb(28);
+  pos.bb[WHITE][KING] = sq_bb(30);
+  pos.occupied        = sq_bb(1) | sq_bb(3) | sq_bb(28) | sq_bb(30);
+  pos.empty_sq        = ~pos.occupied;
+  return pos;
+}
+
+// ---- pieces(Color) ----------------------------------------------------------
+
+TEST(PiecesTest, BlackPiecesIsUnionOfMenAndKings) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(BLACK), sq_bb(1) | sq_bb(3));
+}
+
+TEST(PiecesTest, WhitePiecesIsUnionOfMenAndKings) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(WHITE), sq_bb(28) | sq_bb(30));
+}
+
+TEST(PiecesTest, BlackPiecesExcludesWhiteSquares) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(BLACK) & pos.pieces(WHITE), Bitboard{0});
+}
+
+TEST(PiecesTest, NoKings_PiecesEqualsManBitboard) {
+  Position pos{};
+  pos.bb[BLACK][MAN] = sq_bb(5) | sq_bb(9);
+  EXPECT_EQ(pos.pieces(BLACK), sq_bb(5) | sq_bb(9));
+}
+
+TEST(PiecesTest, NoMen_PiecesEqualsKingBitboard) {
+  Position pos{};
+  pos.bb[WHITE][KING] = sq_bb(25) | sq_bb(27);
+  EXPECT_EQ(pos.pieces(WHITE), sq_bb(25) | sq_bb(27));
+}
+
+// ---- pieces(Color, PieceKind) -----------------------------------------------
+
+TEST(PiecesTest, PiecesColorKind_BlackMan) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(BLACK, MAN), sq_bb(1));
+}
+
+TEST(PiecesTest, PiecesColorKind_BlackKing) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(BLACK, KING), sq_bb(3));
+}
+
+TEST(PiecesTest, PiecesColorKind_WhiteMan) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(WHITE, MAN), sq_bb(28));
+}
+
+TEST(PiecesTest, PiecesColorKind_WhiteKing) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.pieces(WHITE, KING), sq_bb(30));
+}
+
+// ---- men(Color) -------------------------------------------------------------
+
+TEST(MenTest, BlackMenOnlyBlackManBitboard) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.men(BLACK), sq_bb(1));
+}
+
+TEST(MenTest, WhiteMenOnlyWhiteManBitboard) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.men(WHITE), sq_bb(28));
+}
+
+TEST(MenTest, MenExcludesKings) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.men(BLACK) & pos.bb[BLACK][KING], Bitboard{0});
+  EXPECT_EQ(pos.men(WHITE) & pos.bb[WHITE][KING], Bitboard{0});
+}
+
+TEST(MenTest, NoMen_ReturnsZero) {
+  Position pos{};
+  pos.bb[BLACK][KING] = sq_bb(15);
+  EXPECT_EQ(pos.men(BLACK), Bitboard{0});
+}
+
+// ---- kings(Color) -----------------------------------------------------------
+
+TEST(KingsTest, BlackKingsOnlyBlackKingBitboard) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.kings(BLACK), sq_bb(3));
+}
+
+TEST(KingsTest, WhiteKingsOnlyWhiteKingBitboard) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.kings(WHITE), sq_bb(30));
+}
+
+TEST(KingsTest, KingsExcludesMen) {
+  Position pos = make_mixed();
+  EXPECT_EQ(pos.kings(BLACK) & pos.bb[BLACK][MAN], Bitboard{0});
+  EXPECT_EQ(pos.kings(WHITE) & pos.bb[WHITE][MAN], Bitboard{0});
+}
+
+TEST(KingsTest, NoKings_ReturnsZero) {
+  Position pos{};
+  pos.bb[WHITE][MAN] = sq_bb(20);
+  EXPECT_EQ(pos.kings(WHITE), Bitboard{0});
+}
