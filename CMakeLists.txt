@@ -14,7 +14,9 @@ project ("draughts")
 add_library(draughts_core STATIC
     "src/zobrist.cpp"
     "src/position.cpp"
+    "src/tt.cpp"
     "include/draughts/types.h"
+    "include/draughts/tt.h"
     "include/draughts/bitboard.h"
     "include/draughts/position.h"
     "include/draughts/movegen.h"
