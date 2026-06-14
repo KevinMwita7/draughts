@@ -40,6 +40,7 @@ public:
                uint8_t depth, TTFlag flag);
 
     // Permille fill (0-1000), sampled over the first min(1000, size) entries.
+    // https://chess.stackexchange.com/questions/38815/what-does-hashfull-1000-mean-in-stockfish
     int hashfull() const;
 
 private:
