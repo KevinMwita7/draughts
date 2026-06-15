@@ -15,6 +15,7 @@ add_library(draughts_core STATIC
     "src/zobrist.cpp"
     "src/position.cpp"
     "src/tt.cpp"
+    "src/movegen.cpp"
     "include/draughts/types.h"
     "include/draughts/tt.h"
     "include/draughts/bitboard.h"
@@ -35,7 +36,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET draughts_core PROPERTY CXX_STANDARD 20)
 endif()
 
-add_executable(draughts "src/draughts.cpp")
+add_executable(draughts "src/draughts.cpp" "src/movegen.cpp")
 target_link_libraries(draughts PRIVATE draughts_core)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
