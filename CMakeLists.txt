@@ -16,6 +16,7 @@ add_library(draughts_core STATIC
     "src/position.cpp"
     "src/tt.cpp"
     "src/movegen.cpp"
+    "src/perft.cpp"
     "include/draughts/types.h"
     "include/draughts/tt.h"
     "include/draughts/bitboard.h"
