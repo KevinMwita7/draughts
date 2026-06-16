@@ -687,3 +687,84 @@ TEST(KingsTest, NoKings_ReturnsZero) {
   pos.bb[WHITE][MAN] = sq_bb(20);
   EXPECT_EQ(pos.kings(WHITE), Bitboard{0});
 }
+
+// ============================================================================
+// is_terminal
+// ============================================================================
+
+class IsTerminalTest : public ::testing::Test {
+ protected:
+  void SetUp() override { zobrist::init(); }
+
+  static Position make_pos(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
+                           Bitboard w_kings, Color side) {
+    Position pos{};
+    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][KING] = b_kings;
+    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][KING] = w_kings;
+    pos.occupied        = b_men | b_kings | w_men | w_kings;
+    pos.empty_sq        = ~pos.occupied;
+    pos.side_to_move    = side;
+    pos.hash            = compute_hash(pos);
+    pos.ply             = 0;
+    pos.reversible      = 0;
+    return pos;
+  }
+};
+
+// ---- not terminal -----------------------------------------------------------
+
+TEST_F(IsTerminalTest, StartPosition_IsNotTerminal) {
+  EXPECT_FALSE(Position::start_position().is_terminal());
+}
+
+TEST_F(IsTerminalTest, BlackManHasQuietMoves_IsNotTerminal) {
+  // sq 9 (row 2): up-right → 13, up-left → 12, both empty
+  Position pos = make_pos(sq_bb(9), 0, 0, 0, BLACK);
+  EXPECT_FALSE(pos.is_terminal());
+}
+
+TEST_F(IsTerminalTest, BlackManHasCapture_IsNotTerminal) {
+  // sq 9 jumps white man on sq 13, lands on sq 18
+  Position pos = make_pos(sq_bb(9), 0, sq_bb(13), 0, BLACK);
+  EXPECT_FALSE(pos.is_terminal());
+}
+
+TEST_F(IsTerminalTest, WhiteManHasQuietMoves_IsNotTerminal) {
+  // sq 21 (row 5): down-right → 18, down-left → 17, both empty
+  Position pos = make_pos(0, 0, sq_bb(21), 0, WHITE);
+  EXPECT_FALSE(pos.is_terminal());
+}
+
+TEST_F(IsTerminalTest, BlackKingHasMoves_IsNotTerminal) {
+  // sq 13 (row 3): all four diagonal squares open
+  Position pos = make_pos(0, sq_bb(13), 0, 0, BLACK);
+  EXPECT_FALSE(pos.is_terminal());
+}
+
+// ---- terminal ---------------------------------------------------------------
+
+TEST_F(IsTerminalTest, BlackNoPieces_IsTerminal) {
+  Position pos = make_pos(0, 0, sq_bb(20), 0, BLACK);
+  EXPECT_TRUE(pos.is_terminal());
+}
+
+TEST_F(IsTerminalTest, WhiteNoPieces_IsTerminal) {
+  Position pos = make_pos(sq_bb(9), 0, 0, 0, WHITE);
+  EXPECT_TRUE(pos.is_terminal());
+}
+
+TEST_F(IsTerminalTest, BlackManOnPromoRank_IsTerminal) {
+  // sq 28 (BLACK_PROMO_RANK, LEFT_EDGE, row 7): forward shifts overflow or are
+  // masked; no enemies to capture — man has no legal move
+  Position pos = make_pos(sq_bb(28), 0, 0, 0, BLACK);
+  EXPECT_TRUE(pos.is_terminal());
+}
+
+TEST_F(IsTerminalTest, WhiteManOnPromoRank_IsTerminal) {
+  // sq 0 (WHITE_PROMO_RANK, LEFT_EDGE, row 0): downward shifts underflow or are
+  // masked; no enemies to capture — man has no legal move
+  Position pos = make_pos(0, 0, sq_bb(0), 0, WHITE);
+  EXPECT_TRUE(pos.is_terminal());
+}
