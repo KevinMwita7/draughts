@@ -1,6 +1,7 @@
 #include "draughts/position.h"
 #include "draughts/bitboard.h"
 #include "draughts/zobrist.h"
+#include "draughts/movegen.h"
 
 namespace draughts {
 
@@ -105,6 +106,10 @@ namespace draughts {
         Position pos{};
         pos.empty_sq = ALL_SQUARES;
         return pos;
+    }
+
+    bool Position::is_terminal() const noexcept { 
+        return !has_legal_moves(*this);
     }
 
 } // namespace draughts
