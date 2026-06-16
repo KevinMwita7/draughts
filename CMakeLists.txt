@@ -17,6 +17,7 @@ add_library(draughts_core STATIC
     "src/tt.cpp"
     "src/movegen.cpp"
     "src/perft.cpp"
+    "src/notation.cpp"
     "include/draughts/types.h"
     "include/draughts/tt.h"
     "include/draughts/bitboard.h"
