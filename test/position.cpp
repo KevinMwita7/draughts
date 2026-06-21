@@ -1,7 +1,8 @@
+#include "draughts/position.h"
+
 #include <gtest/gtest.h>
 
 #include "draughts/bitboard.h"
-#include "draughts/position.h"
 #include "draughts/zobrist.h"
 
 using namespace draughts;
@@ -14,16 +15,16 @@ class DoMoveTest : public ::testing::Test {
                            Bitboard w_kings, Color side, uint16_t ply = 0,
                            uint8_t reversible = 0) {
     Position pos{};
-    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][MAN] = b_men;
     pos.bb[BLACK][KING] = b_kings;
-    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][MAN] = w_men;
     pos.bb[WHITE][KING] = w_kings;
-    pos.occupied        = b_men | b_kings | w_men | w_kings;
-    pos.empty_sq        = ~pos.occupied;
-    pos.side_to_move    = side;
-    pos.hash            = compute_hash(pos);
-    pos.ply             = ply;
-    pos.reversible      = reversible;
+    pos.occupied = b_men | b_kings | w_men | w_kings;
+    pos.empty_sq = ~pos.occupied;
+    pos.side_to_move = side;
+    pos.hash = compute_hash(pos);
+    pos.ply = ply;
+    pos.reversible = reversible;
     return pos;
   }
 };
@@ -99,7 +100,7 @@ TEST_F(DoMoveTest, BlackManOnPromoRankBecomesKing) {
   Position pos = make_pos(sq_bb(25), 0, 0, 0, BLACK);
   Move m{25, 29, 0, true};
   pos.do_move(m);
-  EXPECT_EQ(pos.bb[BLACK][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[BLACK][MAN], Bitboard{0});
   EXPECT_EQ(pos.bb[BLACK][KING], sq_bb(29));
 }
 
@@ -108,7 +109,7 @@ TEST_F(DoMoveTest, WhiteManOnPromoRankBecomesKing) {
   Position pos = make_pos(0, 0, sq_bb(4), 0, WHITE);
   Move m{4, 0, 0, true};
   pos.do_move(m);
-  EXPECT_EQ(pos.bb[WHITE][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[WHITE][MAN], Bitboard{0});
   EXPECT_EQ(pos.bb[WHITE][KING], sq_bb(0));
 }
 
@@ -202,16 +203,16 @@ class UndoMoveTest : public ::testing::Test {
                            Bitboard w_kings, Color side, uint16_t ply = 0,
                            uint8_t reversible = 0) {
     Position pos{};
-    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][MAN] = b_men;
     pos.bb[BLACK][KING] = b_kings;
-    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][MAN] = w_men;
     pos.bb[WHITE][KING] = w_kings;
-    pos.occupied        = b_men | b_kings | w_men | w_kings;
-    pos.empty_sq        = ~pos.occupied;
-    pos.side_to_move    = side;
-    pos.hash            = compute_hash(pos);
-    pos.ply             = ply;
-    pos.reversible      = reversible;
+    pos.occupied = b_men | b_kings | w_men | w_kings;
+    pos.empty_sq = ~pos.occupied;
+    pos.side_to_move = side;
+    pos.hash = compute_hash(pos);
+    pos.ply = ply;
+    pos.reversible = reversible;
     return pos;
   }
 };
@@ -242,9 +243,9 @@ TEST_F(UndoMoveTest, CapturedKing_Restored) {
   Move m{5, 12, sq_bb(9), false};
   pos.do_move(m);
   pos.undo_move(m);
-  EXPECT_EQ(pos.bb[BLACK][MAN],  sq_bb(5));
+  EXPECT_EQ(pos.bb[BLACK][MAN], sq_bb(5));
   EXPECT_EQ(pos.bb[WHITE][KING], sq_bb(9));
-  EXPECT_EQ(pos.bb[WHITE][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[WHITE][MAN], Bitboard{0});
 }
 
 TEST_F(UndoMoveTest, Promotion_Reverted) {
@@ -253,7 +254,7 @@ TEST_F(UndoMoveTest, Promotion_Reverted) {
   Move m{25, 29, 0, true};
   pos.do_move(m);
   pos.undo_move(m);
-  EXPECT_EQ(pos.bb[BLACK][MAN],  sq_bb(25));
+  EXPECT_EQ(pos.bb[BLACK][MAN], sq_bb(25));
   EXPECT_EQ(pos.bb[BLACK][KING], Bitboard{0});
 }
 
@@ -353,12 +354,12 @@ class RebuildDerivedTest : public ::testing::Test {
   static Position make_dirty(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
                              Bitboard w_kings) {
     Position pos{};
-    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][MAN] = b_men;
     pos.bb[BLACK][KING] = b_kings;
-    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][MAN] = w_men;
     pos.bb[WHITE][KING] = w_kings;
-    pos.occupied        = ALL_SQUARES;  // deliberately wrong
-    pos.empty_sq        = 0;            // deliberately wrong
+    pos.occupied = ALL_SQUARES;  // deliberately wrong
+    pos.empty_sq = 0;            // deliberately wrong
     return pos;
   }
 };
@@ -397,9 +398,9 @@ TEST_F(RebuildDerivedTest, SingleWhiteKing_OccupiedMatchesBitboard) {
 
 TEST_F(RebuildDerivedTest, AllFourPieceTypes_OccupiedIsUnion) {
   // One piece of each kind, all on distinct squares.
-  Bitboard b_men  = sq_bb(1);
+  Bitboard b_men = sq_bb(1);
   Bitboard b_kings = sq_bb(3);
-  Bitboard w_men  = sq_bb(28);
+  Bitboard w_men = sq_bb(28);
   Bitboard w_kings = sq_bb(30);
   Position pos = make_dirty(b_men, b_kings, w_men, w_kings);
   pos.rebuild_derived();
@@ -408,8 +409,8 @@ TEST_F(RebuildDerivedTest, AllFourPieceTypes_OccupiedIsUnion) {
 
 TEST_F(RebuildDerivedTest, StartLayout_OccupiedMatchesDocumentation) {
   // Per bitboard.h: BLACK men on bits 0-11, WHITE men on bits 20-31.
-  Bitboard b_men  = 0x00000FFFu;
-  Bitboard w_men  = 0xFFF00000u;
+  Bitboard b_men = 0x00000FFFu;
+  Bitboard w_men = 0xFFF00000u;
   Position pos = make_dirty(b_men, 0, w_men, 0);
   pos.rebuild_derived();
   EXPECT_EQ(pos.occupied, 0xFFF00FFFu);
@@ -430,7 +431,7 @@ TEST_F(RebuildDerivedTest, EmptyBoard_EmptySqIsAllSquares) {
 }
 
 TEST_F(RebuildDerivedTest, EmptySqIsComplementOfOccupied) {
-  Bitboard b_men  = sq_bb(0) | sq_bb(9);
+  Bitboard b_men = sq_bb(0) | sq_bb(9);
   Bitboard w_kings = sq_bb(25) | sq_bb(31);
   Position pos = make_dirty(b_men, 0, 0, w_kings);
   pos.rebuild_derived();
@@ -538,9 +539,9 @@ TEST_F(StartPositionTest, TwoCallsProduceSameHash) {
 
 TEST(EmptyPositionTest, AllBitboardsAreZero) {
   Position pos = Position::empty_position();
-  EXPECT_EQ(pos.bb[BLACK][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[BLACK][MAN], Bitboard{0});
   EXPECT_EQ(pos.bb[BLACK][KING], Bitboard{0});
-  EXPECT_EQ(pos.bb[WHITE][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[WHITE][MAN], Bitboard{0});
   EXPECT_EQ(pos.bb[WHITE][KING], Bitboard{0});
 }
 
@@ -580,12 +581,12 @@ TEST(EmptyPositionTest, HashIsZero) {
 // Helper: position with one piece of each kind on distinct squares.
 static Position make_mixed() {
   Position pos{};
-  pos.bb[BLACK][MAN]  = sq_bb(1);
+  pos.bb[BLACK][MAN] = sq_bb(1);
   pos.bb[BLACK][KING] = sq_bb(3);
-  pos.bb[WHITE][MAN]  = sq_bb(28);
+  pos.bb[WHITE][MAN] = sq_bb(28);
   pos.bb[WHITE][KING] = sq_bb(30);
-  pos.occupied        = sq_bb(1) | sq_bb(3) | sq_bb(28) | sq_bb(30);
-  pos.empty_sq        = ~pos.occupied;
+  pos.occupied = sq_bb(1) | sq_bb(3) | sq_bb(28) | sq_bb(30);
+  pos.empty_sq = ~pos.occupied;
   return pos;
 }
 
@@ -699,16 +700,16 @@ class IsTerminalTest : public ::testing::Test {
   static Position make_pos(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
                            Bitboard w_kings, Color side) {
     Position pos{};
-    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][MAN] = b_men;
     pos.bb[BLACK][KING] = b_kings;
-    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][MAN] = w_men;
     pos.bb[WHITE][KING] = w_kings;
-    pos.occupied        = b_men | b_kings | w_men | w_kings;
-    pos.empty_sq        = ~pos.occupied;
-    pos.side_to_move    = side;
-    pos.hash            = compute_hash(pos);
-    pos.ply             = 0;
-    pos.reversible      = 0;
+    pos.occupied = b_men | b_kings | w_men | w_kings;
+    pos.empty_sq = ~pos.occupied;
+    pos.side_to_move = side;
+    pos.hash = compute_hash(pos);
+    pos.ply = 0;
+    pos.reversible = 0;
     return pos;
   }
 };

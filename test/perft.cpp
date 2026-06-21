@@ -1,9 +1,11 @@
+#include "draughts/perft.h"
+
 #include <gtest/gtest.h>
+
 #include <sstream>
 #include <string>
 
 #include "draughts/movegen.h"
-#include "draughts/perft.h"
 #include "draughts/position.h"
 #include "draughts/zobrist.h"
 
@@ -16,15 +18,15 @@ class PerftTest : public ::testing::Test {
   static Position make_pos(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
                            Bitboard w_kings, Color side) {
     Position pos{};
-    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][MAN] = b_men;
     pos.bb[BLACK][KING] = b_kings;
-    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][MAN] = w_men;
     pos.bb[WHITE][KING] = w_kings;
     pos.rebuild_derived();
-    pos.side_to_move    = side;
-    pos.hash            = compute_hash(pos);
-    pos.ply             = 0;
-    pos.reversible      = 0;
+    pos.side_to_move = side;
+    pos.hash = compute_hash(pos);
+    pos.ply = 0;
+    pos.reversible = 0;
     return pos;
   }
 };
@@ -75,17 +77,17 @@ TEST_F(PerftTest, ForcedCapture_Depth2IsZero) {
 }
 
 TEST_F(PerftTest, DoesNotMutatePosition) {
-  Position pos    = Position::start_position();
+  Position pos = Position::start_position();
   Position before = pos;
   perft(pos, 3);
-  EXPECT_EQ(pos.bb[BLACK][MAN],  before.bb[BLACK][MAN]);
+  EXPECT_EQ(pos.bb[BLACK][MAN], before.bb[BLACK][MAN]);
   EXPECT_EQ(pos.bb[BLACK][KING], before.bb[BLACK][KING]);
-  EXPECT_EQ(pos.bb[WHITE][MAN],  before.bb[WHITE][MAN]);
+  EXPECT_EQ(pos.bb[WHITE][MAN], before.bb[WHITE][MAN]);
   EXPECT_EQ(pos.bb[WHITE][KING], before.bb[WHITE][KING]);
-  EXPECT_EQ(pos.side_to_move,    before.side_to_move);
-  EXPECT_EQ(pos.hash,            before.hash);
-  EXPECT_EQ(pos.ply,             before.ply);
-  EXPECT_EQ(pos.reversible,      before.reversible);
+  EXPECT_EQ(pos.side_to_move, before.side_to_move);
+  EXPECT_EQ(pos.hash, before.hash);
+  EXPECT_EQ(pos.ply, before.ply);
+  EXPECT_EQ(pos.reversible, before.reversible);
 }
 
 // perft_divide
@@ -129,8 +131,7 @@ TEST_F(PerftDivideTest, OneMoveLinePerRootMove) {
   std::istringstream iss(out.str());
   std::string line;
   while (std::getline(iss, line))
-    if (!line.empty() && line.find("Total:") == std::string::npos)
-      ++count;
+    if (!line.empty() && line.find("Total:") == std::string::npos) ++count;
 
   EXPECT_EQ(count, 7);
 }
@@ -163,11 +164,11 @@ TEST_F(PerftDivideTest, TerminalPosition_ReturnsZeroAndShowsTotal) {
 }
 
 TEST_F(PerftDivideTest, DoesNotMutatePosition) {
-  Position pos    = Position::start_position();
+  Position pos = Position::start_position();
   Position before = pos;
   std::ostringstream out;
   perft_divide(pos, 2, out);
   EXPECT_EQ(pos.side_to_move, before.side_to_move);
-  EXPECT_EQ(pos.hash,         before.hash);
-  EXPECT_EQ(pos.ply,          before.ply);
+  EXPECT_EQ(pos.hash, before.hash);
+  EXPECT_EQ(pos.ply, before.ply);
 }

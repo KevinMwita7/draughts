@@ -1,9 +1,11 @@
+#include "draughts/notation.h"
+
 #include <gtest/gtest.h>
+
 #include <string>
 #include <vector>
 
 #include "draughts/bitboard.h"
-#include "draughts/notation.h"
 #include "draughts/position.h"
 #include "draughts/zobrist.h"
 
@@ -12,16 +14,16 @@ using namespace draughts;
 static Position make_pos(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
                          Bitboard w_kings, Color side) {
   Position pos{};
-  pos.bb[BLACK][MAN]  = b_men;
+  pos.bb[BLACK][MAN] = b_men;
   pos.bb[BLACK][KING] = b_kings;
-  pos.bb[WHITE][MAN]  = w_men;
+  pos.bb[WHITE][MAN] = w_men;
   pos.bb[WHITE][KING] = w_kings;
-  pos.occupied        = b_men | b_kings | w_men | w_kings;
-  pos.empty_sq        = ~pos.occupied;
-  pos.side_to_move    = side;
-  pos.hash            = compute_hash(pos);
-  pos.ply             = 0;
-  pos.reversible      = 0;
+  pos.occupied = b_men | b_kings | w_men | w_kings;
+  pos.empty_sq = ~pos.occupied;
+  pos.side_to_move = side;
+  pos.hash = compute_hash(pos);
+  pos.ply = 0;
+  pos.reversible = 0;
   return pos;
 }
 
@@ -65,20 +67,20 @@ TEST_F(ParsePdnPositionTest, BlackKing_InKingBitboard) {
   // "K5" → black king on PDN 5 = sq 4
   Position pos = parse_pdn_position("B:W20:BK5");
   EXPECT_EQ(pos.bb[BLACK][KING], sq_bb(4));
-  EXPECT_EQ(pos.bb[BLACK][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[BLACK][MAN], Bitboard{0});
 }
 
 TEST_F(ParsePdnPositionTest, WhiteKing_InKingBitboard) {
   // "WK29" → white king on PDN 29 = sq 28
   Position pos = parse_pdn_position("B:WK29:B1");
   EXPECT_EQ(pos.bb[WHITE][KING], sq_bb(28));
-  EXPECT_EQ(pos.bb[WHITE][MAN],  Bitboard{0});
+  EXPECT_EQ(pos.bb[WHITE][MAN], Bitboard{0});
 }
 
 TEST_F(ParsePdnPositionTest, MixedKingsAndMen_CorrectBitboards) {
   // Black: man on PDN 1 (sq 0), king on PDN 5 (sq 4)
   Position pos = parse_pdn_position("B:W20:B1,K5");
-  EXPECT_EQ(pos.bb[BLACK][MAN],  sq_bb(0));
+  EXPECT_EQ(pos.bb[BLACK][MAN], sq_bb(0));
   EXPECT_EQ(pos.bb[BLACK][KING], sq_bb(4));
 }
 
@@ -129,12 +131,12 @@ TEST_F(ToPdnPositionTest, WhiteKing_KPrefix) {
 }
 
 TEST_F(ToPdnPositionTest, RoundTrip_BitboardsMatch) {
-  Position orig = make_pos(sq_bb(0) | sq_bb(1), sq_bb(4),
-                           sq_bb(19) | sq_bb(20), sq_bb(28), BLACK);
-  Position rt   = parse_pdn_position(to_pdn_position(orig));
-  EXPECT_EQ(rt.bb[BLACK][MAN],  orig.bb[BLACK][MAN]);
+  Position orig = make_pos(sq_bb(0) | sq_bb(1), sq_bb(4), sq_bb(19) | sq_bb(20),
+                           sq_bb(28), BLACK);
+  Position rt = parse_pdn_position(to_pdn_position(orig));
+  EXPECT_EQ(rt.bb[BLACK][MAN], orig.bb[BLACK][MAN]);
   EXPECT_EQ(rt.bb[BLACK][KING], orig.bb[BLACK][KING]);
-  EXPECT_EQ(rt.bb[WHITE][MAN],  orig.bb[WHITE][MAN]);
+  EXPECT_EQ(rt.bb[WHITE][MAN], orig.bb[WHITE][MAN]);
   EXPECT_EQ(rt.bb[WHITE][KING], orig.bb[WHITE][KING]);
 }
 
@@ -153,7 +155,8 @@ class ParseMoveTest : public ::testing::Test {
 };
 
 TEST_F(ParseMoveTest, QuietMove_FromSquare) {
-  // Black man sq 8 (PDN 9, LEFT_EDGE row 2): only quiet move is to sq 12 (PDN 13)
+  // Black man sq 8 (PDN 9, LEFT_EDGE row 2): only quiet move is to sq 12 (PDN
+  // 13)
   Position pos = make_pos(sq_bb(8), 0, 0, 0, BLACK);
   EXPECT_EQ(parse_move("9-13", pos).from, Square{8});
 }
@@ -174,7 +177,8 @@ TEST_F(ParseMoveTest, QuietMove_NoPromotion) {
 }
 
 TEST_F(ParseMoveTest, QuietPromotion_FlagSet) {
-  // Black man sq 24 (PDN 25, LEFT_EDGE row 6) → sq 28 (PDN 29, BLACK_PROMO_RANK)
+  // Black man sq 24 (PDN 25, LEFT_EDGE row 6) → sq 28 (PDN 29,
+  // BLACK_PROMO_RANK)
   Position pos = make_pos(sq_bb(24), 0, 0, 0, BLACK);
   EXPECT_TRUE(parse_move("25-29", pos).promotion);
 }
@@ -196,7 +200,8 @@ TEST_F(ParseMoveTest, SingleCapture_CapturedBitboard) {
 }
 
 TEST_F(ParseMoveTest, CapturePromotion_FlagSet) {
-  // Black sq 20 (PDN 21), white sq 25 (PDN 26); lands on sq 29 (PDN 30, promo rank)
+  // Black sq 20 (PDN 21), white sq 25 (PDN 26); lands on sq 29 (PDN 30, promo
+  // rank)
   Position pos = make_pos(sq_bb(20), 0, sq_bb(25), 0, BLACK);
   Move m = parse_move("21x30", pos);
   EXPECT_TRUE(m.promotion);
@@ -252,7 +257,7 @@ TEST_F(ParsePdnTest, SingleBlackMove_IsCorrect) {
   auto moves = parse_pdn("1. 11-15");
   ASSERT_EQ(moves.size(), 1u);
   EXPECT_EQ(moves[0].from, Square{10});
-  EXPECT_EQ(moves[0].to,   Square{14});
+  EXPECT_EQ(moves[0].to, Square{14});
 }
 
 TEST_F(ParsePdnTest, TwoMoves_ReturnsTwoMoves) {
@@ -265,8 +270,8 @@ TEST_F(ParsePdnTest, TwoMoves_BothCorrect) {
   ASSERT_EQ(moves.size(), 2u);
   // Black: sq 10 (PDN 11) → sq 14 (PDN 15)
   EXPECT_EQ(moves[0].from, Square{10});
-  EXPECT_EQ(moves[0].to,   Square{14});
+  EXPECT_EQ(moves[0].to, Square{14});
   // White: sq 22 (PDN 23) → sq 18 (PDN 19)
   EXPECT_EQ(moves[1].from, Square{22});
-  EXPECT_EQ(moves[1].to,   Square{18});
+  EXPECT_EQ(moves[1].to, Square{18});
 }

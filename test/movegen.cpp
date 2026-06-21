@@ -1,7 +1,8 @@
+#include "draughts/movegen.h"
+
 #include <gtest/gtest.h>
 
 #include "draughts/bitboard.h"
-#include "draughts/movegen.h"
 #include "draughts/position.h"
 #include "draughts/zobrist.h"
 
@@ -14,16 +15,16 @@ class GenerateMovesTest : public ::testing::Test {
   static Position make_pos(Bitboard b_men, Bitboard b_kings, Bitboard w_men,
                            Bitboard w_kings, Color side) {
     Position pos{};
-    pos.bb[BLACK][MAN]  = b_men;
+    pos.bb[BLACK][MAN] = b_men;
     pos.bb[BLACK][KING] = b_kings;
-    pos.bb[WHITE][MAN]  = w_men;
+    pos.bb[WHITE][MAN] = w_men;
     pos.bb[WHITE][KING] = w_kings;
-    pos.occupied        = b_men | b_kings | w_men | w_kings;
-    pos.empty_sq        = ~pos.occupied;
-    pos.side_to_move    = side;
-    pos.hash            = compute_hash(pos);
-    pos.ply             = 0;
-    pos.reversible      = 0;
+    pos.occupied = b_men | b_kings | w_men | w_kings;
+    pos.empty_sq = ~pos.occupied;
+    pos.side_to_move = side;
+    pos.hash = compute_hash(pos);
+    pos.ply = 0;
+    pos.reversible = 0;
     return pos;
   }
 
@@ -96,14 +97,15 @@ TEST_F(GenerateMovesTest, KingMidBoard_FourQuietMoves) {
   EXPECT_TRUE(has_move(list, {13, 18, 0, false}));
   EXPECT_TRUE(has_move(list, {13, 17, 0, false}));
   EXPECT_TRUE(has_move(list, {13, 10, 0, false}));
-  EXPECT_TRUE(has_move(list, {13,  9, 0, false}));
+  EXPECT_TRUE(has_move(list, {13, 9, 0, false}));
 }
 
 // ---- captures are mandatory -------------------------------------------------
 
 TEST_F(GenerateMovesTest, CapturesMandatory_QuietMoveSuppressed) {
-  // Black on sq 9; white on sq 13 (blocks quiet up-right but can be captured → sq 18).
-  // Quiet move to sq 12 is available but must be suppressed because a capture exists.
+  // Black on sq 9; white on sq 13 (blocks quiet up-right but can be captured →
+  // sq 18). Quiet move to sq 12 is available but must be suppressed because a
+  // capture exists.
   Position pos = make_pos(sq_bb(9), 0, sq_bb(13), 0, BLACK);
   MoveList list = gen(pos);
   EXPECT_EQ(list.count, 1);
@@ -129,8 +131,8 @@ TEST_F(GenerateMovesTest, WhiteManSingleCapture_CorrectMove) {
 }
 
 TEST_F(GenerateMovesTest, KingCapture_DownwardDirection) {
-  // Black king on sq 17 (even); white man on sq 13 (down-right); land on sq 10 (odd)
-  // shift_down_right(17)=13, shift_down_right(13)=10
+  // Black king on sq 17 (even); white man on sq 13 (down-right); land on sq 10
+  // (odd) shift_down_right(17)=13, shift_down_right(13)=10
   Position pos = make_pos(0, sq_bb(17), sq_bb(13), 0, BLACK);
   MoveList list = gen(pos);
   EXPECT_EQ(list.count, 1);
@@ -150,7 +152,8 @@ TEST_F(GenerateMovesTest, MultiJump_FullChainInSingleMove) {
 // ---- promotion --------------------------------------------------------------
 
 TEST_F(GenerateMovesTest, BlackManQuietPromotion_FlagIsSet) {
-  // sq 25 (row 6, even): up-right → 29 and up-left → 28, both on BLACK_PROMO_RANK
+  // sq 25 (row 6, even): up-right → 29 and up-left → 28, both on
+  // BLACK_PROMO_RANK
   Position pos = make_pos(sq_bb(25), 0, 0, 0, BLACK);
   MoveList list = gen(pos);
   EXPECT_TRUE(has_move(list, {25, 29, 0, true}));
@@ -158,8 +161,8 @@ TEST_F(GenerateMovesTest, BlackManQuietPromotion_FlagIsSet) {
 }
 
 TEST_F(GenerateMovesTest, BlackManCapturePromotion_FlagIsSet) {
-  // Black on sq 20 (odd); white on sq 25 (even); land on sq 29 (BLACK_PROMO_RANK)
-  // shift_up_right(20)=25, shift_up_right(25)=29
+  // Black on sq 20 (odd); white on sq 25 (even); land on sq 29
+  // (BLACK_PROMO_RANK) shift_up_right(20)=25, shift_up_right(25)=29
   Position pos = make_pos(sq_bb(20), 0, sq_bb(25), 0, BLACK);
   MoveList list = gen(pos);
   EXPECT_EQ(list.count, 1);
