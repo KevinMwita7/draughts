@@ -8,7 +8,7 @@ namespace draughts {
 struct Evaluator;
 
     struct SearchParams {
-        int      max_depth = 64;     // 0 = unlimited
+        int      max_depth = 64;
         int      time_ms   = 0;      // 0 = unlimited
         uint64_t max_nodes = 0;      // 0 = unlimited
     };

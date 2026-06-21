@@ -60,7 +60,7 @@ SearchResult search(Position& pos, const SearchParams& params,
         return result;
     }
 
-    int  max_depth = (params.max_depth > 0) ? params.max_depth : 128;
+    int  max_depth = (params.max_depth > 0) ? params.max_depth : 64;
     auto start     = std::chrono::steady_clock::now();
     State st{params, eval};
 
