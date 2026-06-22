@@ -20,6 +20,7 @@ add_library(draughts_core STATIC
     "src/notation.cpp"
     "src/eval_material.cpp"
     "src/search.cpp"
+    "src/protocol.cpp"
     "include/draughts/types.h"
     "include/draughts/tt.h"
     "include/draughts/bitboard.h"

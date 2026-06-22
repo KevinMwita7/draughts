@@ -16,7 +16,7 @@ static void capture_from(Square orig, Square cur, Bitboard enemy,
   // Man reaching the back rank: crown it and stop — no king continuation this
   // turn
   if (!is_king && (c & promo_rank)) {
-    list.push({orig, cur, captured, true});
+    if (captured) list.push({orig, cur, captured, true});
     return;
   }
 
