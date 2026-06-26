@@ -60,6 +60,14 @@ TextProtocol::TextProtocol(Evaluator& e) : pos(Position::start_position()) {
   eval = &e;
 }
 
+TextProtocol::~TextProtocol() { stop_search(); }
+
+void TextProtocol::stop_search() {
+  stop_flag_.store(true, std::memory_order_relaxed);
+  if (search_thread_.joinable()) search_thread_.join();
+  stop_flag_.store(false, std::memory_order_relaxed);
+}
+
 void TextProtocol::run(std::istream& in, std::ostream& out) {
   std::string line;
   while (std::getline(in, line)) {
@@ -70,21 +78,27 @@ void TextProtocol::run(std::istream& in, std::ostream& out) {
 }
 
 void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
-  size_t i = 0;
-  while (i < line.size() && std::isspace((unsigned char)line[i])) ++i;
-  if (i == line.size()) return;
+  std::string cmd = first_word_lower(line);
+  if (cmd.empty()) return;
 
-  size_t j = i;
-  while (j < line.size() && !std::isspace((unsigned char)line[j])) ++j;
-
-  std::string cmd = line.substr(i, j - i);
-  for (char& c : cmd) c = (char)std::tolower((unsigned char)c);
-
-  while (j < line.size() && std::isspace((unsigned char)line[j])) ++j;
-  std::string rest = line.substr(j);
+  size_t off = 0;
+  while (off < line.size() && std::isspace((unsigned char)line[off])) ++off;
+  off += cmd.size();
+  while (off < line.size() && std::isspace((unsigned char)line[off])) ++off;
+  std::string rest = line.substr(off);
 
   if (cmd == "quit" || cmd == "exit") {
+    stop_search();
     return;
+  } else if (cmd == "ucinewgame") {
+    stop_search();
+    pos = Position::start_position();
+    params = SearchParams{};
+  } else if (cmd == "isready") {
+    std::lock_guard<std::mutex> lk(out_mutex_);
+    out << "readyok\n";
+  } else if (cmd == "setoption") {
+    // parsed and ignored
   } else if (cmd == "position") {
     pos = parse_pdn_position(rest);
   } else if (cmd == "move") {
@@ -93,8 +107,21 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       out << "error: illegal move\n";
     else
       pos.do_move(m);
+  } else if (cmd == "stop") {
+    stop_search();
+  } else if (cmd == "ponderhit") {
+    // Don't stop the ponder search — it's already on the right position.
+    // Signal it to switch to real time controls.
+    pondering_ = false;
+    int real_time = pending_go_params_.time_ms;
+    if (real_time > 0)
+      ponder_switch_ms_.store(real_time, std::memory_order_release);
+    // If real_time == 0 (no movetime given), search runs until 'stop'.
   } else if (cmd == "go") {
+    stop_search();
     SearchParams p = params;
+    p.stop_signal = &stop_flag_;
+    bool ponder = false;
     std::istringstream ss(rest);
     std::string tok;
     while (ss >> tok) {
@@ -102,19 +129,38 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       if (tok == "depth") {
         int d;
         if (ss >> d) p.max_depth = d;
-      } else if (tok == "time") {
+      } else if (tok == "movetime") {
         int t;
         if (ss >> t) p.time_ms = t;
+      } else if (tok == "ponder") {
+        ponder = true;
       }
     }
-    SearchResult r = search(pos, p, *eval, [&](const SearchResult& ri) {
-      out << "info depth " << ri.depth << " score " << ri.score << " nodes "
-          << ri.nodes << " time " << ri.elapsed_ms << " move "
-          << move_to_string(ri.best_move) << '\n';
+    // Save real params BEFORE the ponder override so ponderhit gets the right
+    // time.
+    pending_go_params_ = p;
+    pending_go_params_.stop_signal = nullptr;
+    pending_go_params_.switch_time_ms = nullptr;
+    pondering_ = ponder;
+    if (ponder) {
+      ponder_switch_ms_.store(0, std::memory_order_relaxed);
+      p.time_ms = 0;
+      p.max_depth = 64;
+      p.switch_time_ms = &ponder_switch_ms_;
+    }
+    Position pos_copy = pos;
+    search_thread_ = std::thread([this, pos_copy, p, &out]() mutable {
+      SearchResult r = search(pos_copy, p, *eval, [&](const SearchResult& ri) {
+        std::lock_guard<std::mutex> lk(out_mutex_);
+        out << "info depth " << ri.depth << " score " << ri.score << " nodes "
+            << ri.nodes << " time " << ri.elapsed_ms << " move "
+            << move_to_string(ri.best_move) << '\n';
+      });
+      std::lock_guard<std::mutex> lk(out_mutex_);
+      out << "bestmove "
+          << (is_null(r.best_move) ? "none" : move_to_string(r.best_move))
+          << '\n';
     });
-    out << "bestmove "
-        << (is_null(r.best_move) ? "none" : move_to_string(r.best_move))
-        << '\n';
   } else if (cmd == "perft") {
     int depth = 0;
     try {
@@ -125,7 +171,7 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       out << "error: usage: perft <depth>\n";
     else
       perft_divide(pos, depth, out);
-  } else if (cmd == "print") {
+  } else if (cmd == "d") {
     print_board(pos, out);
   } else {
     out << "error: unknown command '" << cmd << "'\n";
