@@ -14,8 +14,7 @@ struct SearchParams {
   int time_ms = 0;         // 0 = unlimited
   uint64_t max_nodes = 0;  // 0 = unlimited
   std::atomic<bool>* stop_signal = nullptr;
-  std::atomic<int>* switch_time_ms =
-      nullptr;  // set by ponderhit; search polls this
+  std::atomic<int>* switch_time_ms = nullptr;  // set by ponderhit; search polls this
 };
 
 // Search result

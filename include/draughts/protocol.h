@@ -42,9 +42,9 @@ struct TextProtocol : Protocol {
   explicit TextProtocol(Evaluator& e);
   ~TextProtocol();
   void run(std::istream& in, std::ostream& out) override;
+  void handle_command(const std::string& line, std::ostream& out);
 
  private:
-  void handle_command(const std::string& line, std::ostream& out);
   void stop_search();  // set flag + join if joinable
 
   std::atomic<bool> stop_flag_{false};

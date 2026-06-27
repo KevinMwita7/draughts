@@ -87,10 +87,10 @@ TEST_F(TextProtocolTest, ExitProducesNoOutput) {
 }
 
 TEST_F(TextProtocolTest, RunStopsOnQuit) {
-  std::istringstream in("print\nquit\nprint\n");
+  std::istringstream in("d\nquit\nd\n");
   std::ostringstream out;
   proto.run(in, out);
-  // First print processed; second print (after quit) must not appear.
+  // First d processed; second d (after quit) must not appear.
   EXPECT_EQ(count_substr(out.str(), "Side to move"), 1);
 }
 
@@ -112,31 +112,31 @@ TEST_F(TextProtocolTest, RunProcessesCommandsBeforeQuit) {
 // --------------------------------------------------------
 
 TEST_F(TextProtocolTest, CommandsAreCaseInsensitive) {
-  EXPECT_TRUE(contains(run_cmd(proto, "PRINT"), "Side to move"));
-  EXPECT_TRUE(contains(run_cmd(proto, "Print"), "Side to move"));
+  EXPECT_TRUE(contains(run_cmd(proto, "D"), "Side to move"));
+  EXPECT_TRUE(contains(run_cmd(proto, "d"), "Side to move"));
   EXPECT_EQ(run_cmd(proto, "QUIT"), "");
   EXPECT_EQ(run_cmd(proto, "EXIT"), "");
 }
 
-// ---- print command
-// -------------------------------------------------------------
+// ---- d command
+// ------------------------------------------------------------------
 
 TEST_F(TextProtocolTest, PrintShowsSideToMove) {
-  EXPECT_TRUE(contains(run_cmd(proto, "print"), "Side to move: Black"));
+  EXPECT_TRUE(contains(run_cmd(proto, "d"), "Side to move: Black"));
 }
 
 TEST_F(TextProtocolTest, PrintShowsPDNString) {
-  EXPECT_TRUE(contains(run_cmd(proto, "print"),
+  EXPECT_TRUE(contains(run_cmd(proto, "d"),
                        to_pdn_position(Position::start_position())));
 }
 
 TEST_F(TextProtocolTest, PrintShowsBoardBorders) {
-  EXPECT_TRUE(contains(run_cmd(proto, "print"), "+---+"));
+  EXPECT_TRUE(contains(run_cmd(proto, "d"), "+---+"));
 }
 
 TEST_F(TextProtocolTest, PrintReflectsCurrentSideAfterPositionCommand) {
   run_cmd(proto, "position W:W21:B1");
-  EXPECT_TRUE(contains(run_cmd(proto, "print"), "Side to move: White"));
+  EXPECT_TRUE(contains(run_cmd(proto, "d"), "Side to move: White"));
 }
 
 // ---- position command
@@ -245,7 +245,7 @@ TEST_F(TextProtocolTest, GoReturnsNoneOnTerminalPosition) {
 TEST_F(TextProtocolTest, GoTimeFlagIsParsed) {
   // go time 10 should still complete without hanging (time_ms is a limit, not a
   // target, so a fast search at depth 1 finishes well within 10 ms).
-  std::string out = run_cmd(proto, "go depth 1 time 10");
+  std::string out = run_cmd(proto, "go depth 1 movetime 10");
   EXPECT_TRUE(contains(out, "bestmove"));
 }
 
@@ -275,4 +275,83 @@ TEST_F(TextProtocolTest, PerftNegativeDepthReportsError) {
 
 TEST_F(TextProtocolTest, PerftNoArgReportsError) {
   EXPECT_TRUE(contains(run_cmd(proto, "perft"), "error"));
+}
+
+// ---- isready
+// -----------------------------------------------------------
+
+TEST_F(TextProtocolTest, IsReadyOutputsReadyOk) {
+  EXPECT_EQ(run_cmd(proto, "isready"), "readyok\n");
+}
+
+TEST_F(TextProtocolTest, IsReadyCaseInsensitive) {
+  EXPECT_EQ(run_cmd(proto, "ISREADY"), "readyok\n");
+}
+
+// ---- setoption
+// ---------------------------------------------------------
+
+TEST_F(TextProtocolTest, SetOptionProducesNoOutput) {
+  EXPECT_EQ(run_cmd(proto, "setoption name Hash value 16"), "");
+}
+
+TEST_F(TextProtocolTest, SetOptionDoesNotChangePosition) {
+  std::string before = to_pdn_position(proto.pos);
+  run_cmd(proto, "setoption name Hash value 16");
+  EXPECT_EQ(to_pdn_position(proto.pos), before);
+}
+
+// ---- ucinewgame
+// --------------------------------------------------------
+
+TEST_F(TextProtocolTest, UciNewGameResetsToStartPosition) {
+  run_cmd(proto, "move 9-13");
+  run_cmd(proto, "ucinewgame");
+  EXPECT_EQ(to_pdn_position(proto.pos),
+            to_pdn_position(Position::start_position()));
+}
+
+TEST_F(TextProtocolTest, UciNewGameResetsSideToMove) {
+  run_cmd(proto, "move 9-13");
+  run_cmd(proto, "ucinewgame");
+  EXPECT_EQ(proto.pos.side_to_move, BLACK);
+}
+
+TEST_F(TextProtocolTest, UciNewGameResetsSearchParams) {
+  proto.params.max_depth = 5;
+  run_cmd(proto, "ucinewgame");
+  EXPECT_EQ(proto.params.max_depth, 64);
+}
+
+TEST_F(TextProtocolTest, UciNewGameProducesNoOutput) {
+  EXPECT_EQ(run_cmd(proto, "ucinewgame"), "");
+}
+
+// ---- stop
+// --------------------------------------------------------------
+
+TEST_F(TextProtocolTest, StopProducesNoOutput) {
+  EXPECT_EQ(run_cmd(proto, "stop"), "");
+}
+
+TEST_F(TextProtocolTest, StopWithNoActiveSearchProducesNoOutput) {
+  // stop when idle must not crash or emit anything
+  run_cmd(proto, "stop");
+  EXPECT_EQ(run_cmd(proto, "stop"), "");
+}
+
+// ---- ponderhit
+// ---------------------------------------------------------
+
+TEST_F(TextProtocolTest, PonderHitWithNoActiveSearchProducesNoOutput) {
+  EXPECT_EQ(run_cmd(proto, "ponderhit"), "");
+}
+
+TEST_F(TextProtocolTest, PonderHitThenStopEmitsBestmove) {
+  // go ponder starts an unbounded search; ponderhit switches to real time;
+  // stop terminates and joins the thread, which then writes bestmove.
+  std::istringstream in("go ponder depth 64\nponderhit\nstop\n");
+  std::ostringstream out;
+  proto.run(in, out);
+  EXPECT_TRUE(contains(out.str(), "bestmove"));
 }
