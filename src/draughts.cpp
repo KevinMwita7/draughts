@@ -1,12 +1,10 @@
 ﻿// draughts.cpp : Defines the entry point for the application.
-//
 
 #include "draughts/draughts.h"
 
-using namespace std;
-
-int main()
-{
-	cout << "Hello CMake." << endl;
-	return 0;
+int main() {
+  draughts::MaterialEval eval;
+  draughts::TextProtocol protocol(eval);
+  protocol.run(std::cin, std::cout);
+  return 0;
 }
