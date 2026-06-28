@@ -1,8 +1,8 @@
-﻿// draughts.h : Include file for standard system include files,
-// or project specific include files.
+﻿// draughts.h : Top-level include that ties together the public API.
 
 #pragma once
 
 #include <iostream>
 
-// TODO: Reference additional headers your program requires here.
+#include "eval_material.h"
+#include "protocol.h"
