@@ -161,6 +161,10 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
           << (is_null(r.best_move) ? "none" : move_to_string(r.best_move))
           << '\n';
     });
+    // Ponder searches run until ponderhit/stop; all other go commands must
+    // complete before handle_command returns so callers see the full output and
+    // the captured &out reference stays valid.
+    if (!ponder && search_thread_.joinable()) search_thread_.join();
   } else if (cmd == "perft") {
     int depth = 0;
     try {

@@ -19,6 +19,7 @@ add_library(draughts_core STATIC
     "src/perft.cpp"
     "src/notation.cpp"
     "src/eval_material.cpp"
+    "src/eval_linear.cpp"
     "src/search.cpp"
     "src/protocol.cpp"
     "include/draughts/types.h"

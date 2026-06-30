@@ -3,7 +3,7 @@
 #include "draughts/draughts.h"
 
 int main() {
-  draughts::MaterialEval eval;
+  draughts::LinearEval eval;
   draughts::TextProtocol protocol(eval);
   protocol.run(std::cin, std::cout);
   return 0;
