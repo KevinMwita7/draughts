@@ -4,5 +4,5 @@
 
 #include <iostream>
 
-#include "eval_material.h"
+#include "eval_linear.h"
 #include "protocol.h"
