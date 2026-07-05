@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# CMake user-local preset overrides (machine-specific, not for source control)
+CMakeUserPresets.json
