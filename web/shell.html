@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Draughts</title>
+<style>
+  body { font-family: sans-serif; background: #222; color: #eee; text-align: center; }
+  #app { display: inline-block; margin-top: 20px; }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 56px);
+    grid-template-rows: repeat(8, 56px);
+    border: 4px solid #444;
+    margin: 12px auto;
+  }
+  .cell { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+  .cell.light { background: #e8d8c0; }
+  .cell.dark { background: #6b4a34; cursor: pointer; }
+  .cell.dark.selected { outline: 3px solid #ffd54a; outline-offset: -3px; }
+  .cell.dark.last-move { box-shadow: inset 0 0 0 3px #4fc3f7; }
+  .cell.dark.legal-dest { box-shadow: inset 0 0 0 3px #66bb6a; }
+  .piece { position: relative; width: 70%; height: 70%; border-radius: 50%; box-sizing: border-box; border: 2px solid #000; }
+  .piece.black { background: #1a1a1a; }
+  .piece.white { background: #f5f5f5; }
+  .piece.king::after {
+    content: 'K';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: gold; font-weight: bold;
+  }
+  #status { margin: 8px 0; font-size: 1.1em; min-height: 1.4em; }
+  button { padding: 6px 14px; font-size: 1em; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div id="app">
+    <h1>Draughts</h1>
+    <div id="status">Loading engine&hellip;</div>
+    <div id="board"></div>
+    <button id="newGameBtn" disabled>New Game</button>
+    <p style="margin-top:16px;font-size:0.85em;color:#999;">Current PDN (for bug reports):</p>
+    <pre id="pdnDebug" style="background:#111;color:#9f9;padding:8px;border-radius:4px;user-select:all;white-space:pre-wrap;"></pre>
+  </div>
+
+<script>
+  var Module = {
+    onRuntimeInitialized: function () { initGame(); }
+  };
+
+  // Board32to64[sq32] -> 8x8 index (0 = top-left), copied from
+  // include/draughts/bitboard.h to keep orientation in sync with the engine.
+  var BOARD32TO64 = [
+    56, 58, 60, 62,
+    49, 51, 53, 55,
+    40, 42, 44, 46,
+    33, 35, 37, 39,
+    24, 26, 28, 30,
+    17, 19, 21, 23,
+    8, 10, 12, 14,
+    1, 3, 5, 7
+  ];
+  var SQ64_TO_SQ32 = {};
+  BOARD32TO64.forEach(function (idx64, i) { SQ64_TO_SQ32[idx64] = i + 1; });
+  var CELL_SIZE = 56;  // px; must match #board's grid-template-columns/rows
+  var ANIM_MS = 350;
+
+  var boardEl, statusEl, newGameBtn, pdnEl;
+  var selected = null;   // selected source square (1-32), or null
+  var legalDestinations = [];  // legal 'to' squares for the selected piece
+  var boardState = {};   // square (1-32) -> { color: 'W'|'B', king: bool }
+  var sideToMove = 'B';
+  var gameOver = false;
+  var lastFrom = null, lastTo = null;  // last-moved squares, for highlighting
+  var lastMoveClearTimer = null;
+  var LAST_MOVE_HIGHLIGHT_MS = 900;  // how long the from/to highlight lingers
+
+  function cmd(line) {
+    return Module.ccall('dr_command', 'string', ['string'], [line]);
+  }
+
+  // Side-effect-free: 'go' always restores the position after searching, so
+  // this can be used purely to ask "does the side to move have a legal move?"
+  function hasLegalMoves() {
+    var resp = cmd('go depth 1');
+    var m = /bestmove\s+(\S+)/.exec(resp);
+    return !(m && m[1] === 'none');
+  }
+
+  function announceGameOver(loserSide) {
+    gameOver = true;
+    statusEl.textContent = loserSide === 'B' ? 'Game over — engine wins!' : 'Game over — you win!';
+  }
+
+  function sideHasPieces(color) {
+    return Object.keys(boardState).some(function (sq) {
+      return boardState[sq].color === color;
+    });
+  }
+
+  // The last-move highlight is transient: it marks the move that just
+  // happened, but shouldn't still be sitting there next turn.
+  function scheduleLastMoveClear() {
+    if (lastMoveClearTimer) clearTimeout(lastMoveClearTimer);
+    lastMoveClearTimer = setTimeout(function () {
+      lastMoveClearTimer = null;
+      lastFrom = null;
+      lastTo = null;
+      render();
+    }, LAST_MOVE_HIGHLIGHT_MS);
+  }
+
+  function selectSquare(sq) {
+    selected = sq;
+    var resp = cmd('moves');
+    legalDestinations = resp.split(/\s+/).reduce(function (acc, tok) {
+      var mm = /^(\d+)[-x](\d+)$/.exec(tok);
+      if (mm && parseInt(mm[1], 10) === sq) acc.push(parseInt(mm[2], 10));
+      return acc;
+    }, []);
+  }
+
+  function clearSelection() {
+    selected = null;
+    legalDestinations = [];
+  }
+
+  function extractPdn(text) {
+    var lines = text.split('\n');
+    for (var i = lines.length - 1; i >= 0; i--) {
+      var l = lines[i].trim();
+      if (/^[BW]:/.test(l)) return l;
+    }
+    return null;
+  }
+
+  function parsePdn(pdn) {
+    var parts = pdn.trim().split(':');
+    var state = { sideToMove: parts[0], board: {} };
+    for (var p = 1; p < parts.length; p++) {
+      var seg = parts[p];
+      var color = seg.charAt(0);
+      var rest = seg.slice(1);
+      if (!rest) continue;
+      rest.split(',').forEach(function (tok) {
+        tok = tok.trim();
+        if (!tok) return;
+        var king = false;
+        if (tok.charAt(0) === 'K') { king = true; tok = tok.slice(1); }
+        var sq = parseInt(tok, 10);
+        if (!isNaN(sq)) state.board[sq] = { color: color, king: king };
+      });
+    }
+    return state;
+  }
+
+  function refreshState() {
+    var resp = cmd('d');
+    var pdn = extractPdn(resp);
+    if (!pdn) return;
+    pdnEl.textContent = pdn;
+    var state = parsePdn(pdn);
+    sideToMove = state.sideToMove;
+    boardState = state.board;
+    render();
+  }
+
+  // Slides the moving piece from fromSq to toSq and fades out any captured
+  // pieces, using CSS transitions on the existing (pre-move) DOM, then swaps
+  // in the real post-move state and does a normal render().
+  function animateMove(fromSq, toSq, capturedSquares, newState, newSide, done) {
+    var fromCell = boardEl.querySelector('.cell[data-sq="' + fromSq + '"]');
+    var piece = fromCell && fromCell.querySelector('.piece');
+    if (!piece) {
+      boardState = newState;
+      sideToMove = newSide;
+      render();
+      scheduleLastMoveClear();
+      done();
+      return;
+    }
+
+    var fRow = BOARD32TO64[fromSq - 1] >> 3, fCol = BOARD32TO64[fromSq - 1] & 7;
+    var tRow = BOARD32TO64[toSq - 1] >> 3, tCol = BOARD32TO64[toSq - 1] & 7;
+    var dx = (tCol - fCol) * CELL_SIZE;
+    var dy = (tRow - fRow) * CELL_SIZE;
+
+    piece.style.zIndex = '5';
+    piece.style.transition = 'transform ' + ANIM_MS + 'ms ease';
+    piece.getBoundingClientRect();  // force layout so the transition applies
+    piece.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+
+    capturedSquares.forEach(function (sq) {
+      var cell = boardEl.querySelector('.cell[data-sq="' + sq + '"]');
+      var p = cell && cell.querySelector('.piece');
+      if (p) {
+        p.style.transition = 'opacity ' + ANIM_MS + 'ms ease';
+        p.style.opacity = '0';
+      }
+    });
+
+    setTimeout(function () {
+      boardState = newState;
+      sideToMove = newSide;
+      render();
+      scheduleLastMoveClear();
+      done();
+    }, ANIM_MS + 30);
+  }
+
+  // Fetches the post-move position, animates the just-applied move (from/to
+  // already sent to the engine via 'move'), then hands control back via done.
+  function applyMoveAndAnimate(fromSq, toSq, done) {
+    var oldState = boardState;
+    var resp = cmd('d');
+    var pdn = extractPdn(resp);
+    if (!pdn) { done(); return; }
+    pdnEl.textContent = pdn;
+    var parsed = parsePdn(pdn);
+
+    var capturedSquares = Object.keys(oldState).map(Number).filter(function (sq) {
+      return sq !== fromSq && !parsed.board[sq];
+    });
+
+    lastFrom = fromSq;
+    lastTo = toSq;
+    animateMove(fromSq, toSq, capturedSquares, parsed.board, parsed.sideToMove, done);
+  }
+
+  function squareRowDiff(a, b) {
+    var ra = BOARD32TO64[a - 1] >> 3;
+    var rb = BOARD32TO64[b - 1] >> 3;
+    return Math.abs(ra - rb);
+  }
+
+  function render() {
+    boardEl.innerHTML = '';
+    for (var row = 0; row < 8; row++) {
+      for (var col = 0; col < 8; col++) {
+        var idx64 = row * 8 + col;
+        var cell = document.createElement('div');
+        cell.className = 'cell';
+        var sq = SQ64_TO_SQ32[idx64];
+        if (sq === undefined) {
+          cell.classList.add('light');
+        } else {
+          cell.classList.add('dark');
+          cell.dataset.sq = sq;
+          if (selected === sq) cell.classList.add('selected');
+          if (sq === lastFrom || sq === lastTo) cell.classList.add('last-move');
+          if (legalDestinations.indexOf(sq) !== -1) cell.classList.add('legal-dest');
+          var piece = boardState[sq];
+          if (piece) {
+            var p = document.createElement('div');
+            p.className = 'piece ' + (piece.color === 'W' ? 'white' : 'black') + (piece.king ? ' king' : '');
+            cell.appendChild(p);
+          }
+          cell.addEventListener('click', onCellClick);
+        }
+        boardEl.appendChild(cell);
+      }
+    }
+    if (!gameOver) {
+      statusEl.textContent = sideToMove === 'B' ? 'Your move (Black)' : "Engine's move (White)…";
+    }
+  }
+
+  function onCellClick(e) {
+    if (gameOver || sideToMove !== 'B') return;
+    var sq = parseInt(e.currentTarget.dataset.sq, 10);
+    var piece = boardState[sq];
+
+    if (selected === null) {
+      if (piece && piece.color === 'B') {
+        selectSquare(sq);
+        render();
+      }
+      return;
+    }
+    if (selected === sq) {
+      clearSelection();
+      render();
+      return;
+    }
+    if (piece && piece.color === 'B') {
+      selectSquare(sq);
+      render();
+      return;
+    }
+
+    var from = selected;
+    var to = sq;
+    var sep = squareRowDiff(from, to) >= 2 ? 'x' : '-';
+    clearSelection();
+    render();  // drop the selected/legal-dest highlights before animating
+
+    var resp = cmd('move ' + from + sep + to);
+    if (resp && resp.trim().indexOf('error:') === 0) {
+      statusEl.textContent = 'Illegal move — try again';
+      render();
+      return;
+    }
+
+    applyMoveAndAnimate(from, to, function () {
+      if (gameOver || sideToMove !== 'W') return;
+      if (!sideHasPieces('W')) announceGameOver('W');
+      else engineMove();
+    });
+  }
+
+  function engineMove() {
+    statusEl.textContent = "Engine's move (White)…";
+    // Give the status text (and the human's own last-move highlight) a beat
+    // to actually be seen before the blocking search call takes over.
+    setTimeout(function () {
+      var resp = cmd('go movetime 1000');
+      var m = /bestmove\s+(\S+)/.exec(resp);
+      var best = m ? m[1] : 'none';
+      if (best === 'none') {
+        announceGameOver('W');
+        return;
+      }
+      var mm = /^(\d+)[-x](\d+)/.exec(best);
+      cmd('move ' + best);
+      if (!mm) { refreshState(); return; }
+      var moveFrom = parseInt(mm[1], 10), moveTo = parseInt(mm[2], 10);
+      applyMoveAndAnimate(moveFrom, moveTo, function () {
+        if (gameOver || sideToMove !== 'B') return;
+        if (!sideHasPieces('B') || !hasLegalMoves()) announceGameOver('B');
+      });
+    }, 400);
+  }
+
+  function newGame() {
+    if (lastMoveClearTimer) { clearTimeout(lastMoveClearTimer); lastMoveClearTimer = null; }
+    gameOver = false;
+    selected = null;
+    legalDestinations = [];
+    lastFrom = null;
+    lastTo = null;
+    cmd('ucinewgame');
+    refreshState();
+  }
+
+  function initGame() {
+    boardEl = document.getElementById('board');
+    statusEl = document.getElementById('status');
+    pdnEl = document.getElementById('pdnDebug');
+    newGameBtn = document.getElementById('newGameBtn');
+    newGameBtn.disabled = false;
+    newGameBtn.addEventListener('click', newGame);
+    newGame();
+  }
+</script>
+
+{{{ SCRIPT }}}
+</body>
+</html>

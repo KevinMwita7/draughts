@@ -51,3 +51,13 @@ endif()
 
 enable_testing()
 add_subdirectory(test)
+
+# Pass essential compilation and linker flags required by Emscripten
+if(EMSCRIPTEN)
+    set_target_properties(draughts PROPERTIES SUFFIX ".html")
+    target_link_options(draughts PRIVATE
+        "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+        "-sNO_EXIT_RUNTIME=1"
+        "--shell-file" "${CMAKE_SOURCE_DIR}/web/shell.html"
+    )
+endif()

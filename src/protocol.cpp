@@ -6,6 +6,7 @@
 
 #include "draughts/bitboard.h"
 #include "draughts/eval.h"
+#include "draughts/movegen.h"
 #include "draughts/notation.h"
 #include "draughts/perft.h"
 #include "draughts/search.h"
@@ -149,7 +150,7 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       p.switch_time_ms = &ponder_switch_ms_;
     }
     Position pos_copy = pos;
-    search_thread_ = std::thread([this, pos_copy, p, &out]() mutable {
+    auto run_search = [this, pos_copy, p, &out]() mutable {
       SearchResult r = search(pos_copy, p, *eval, [&](const SearchResult& ri) {
         std::lock_guard<std::mutex> lk(out_mutex_);
         out << "info depth " << ri.depth << " score " << ri.score << " nodes "
@@ -160,11 +161,19 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       out << "bestmove "
           << (is_null(r.best_move) ? "none" : move_to_string(r.best_move))
           << '\n';
-    });
+    };
+#ifdef __EMSCRIPTEN__
+    // This build has no pthread/COOP+COEP setup, so std::thread can't
+    // actually construct a thread here (aborts). Run synchronously instead;
+    // callers of dr_command already treat 'go' as a blocking call.
+    run_search();
+#else
+    search_thread_ = std::thread(run_search);
     // Ponder searches run until ponderhit/stop; all other go commands must
     // complete before handle_command returns so callers see the full output and
     // the captured &out reference stays valid.
     if (!ponder && search_thread_.joinable()) search_thread_.join();
+#endif
   } else if (cmd == "perft") {
     int depth = 0;
     try {
@@ -175,6 +184,14 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       out << "error: usage: perft <depth>\n";
     else
       perft_divide(pos, depth, out);
+  } else if (cmd == "moves") {
+    MoveList list;
+    generate_moves(pos, list);
+    for (int i = 0; i < list.count; ++i) {
+      if (i) out << ' ';
+      out << move_to_string(list[i]);
+    }
+    out << '\n';
   } else if (cmd == "d") {
     print_board(pos, out);
   } else {

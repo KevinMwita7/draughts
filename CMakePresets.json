@@ -49,13 +49,23 @@
                 "CMAKE_BUILD_TYPE": "Debug"
             }
         },
-        {
-            "name": "x86-release",
-            "displayName": "x86 Release",
-            "inherits": "x86-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
+      {
+        "name": "x86-release",
+        "displayName": "x86 Release",
+        "inherits": "x86-debug",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release"
         }
+      },
+      {
+        "name": "wasm-debug",
+        "displayName": "WebAssembly Debug",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/out/build/${presetName}",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug"
+        },
+        "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+      }
     ]
 }

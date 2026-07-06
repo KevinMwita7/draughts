@@ -25,6 +25,7 @@ struct Protocol {
 //   setoption name <n> ...  — parsed and ignored
 //   position <pdn>          — set board from PDN position string
 //   move <move>             — make a move (PDN notation)
+//   moves                   — list all legal moves for the side to move
 //   go [depth N] [movetime N] [ponder] — search and print best move
 //   stop                    — stop searching
 //   ponderhit               — switch from ponder to real search
