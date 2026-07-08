@@ -38,6 +38,7 @@
     <div id="status">Loading engine&hellip;</div>
     <div id="board"></div>
     <button id="newGameBtn" disabled>New Game</button>
+    <button id="selfPlayBtn" disabled>Self-Play</button>
     <p style="margin-top:16px;font-size:0.85em;color:#999;">Current PDN (for bug reports):</p>
     <pre id="pdnDebug" style="background:#111;color:#9f9;padding:8px;border-radius:4px;user-select:all;white-space:pre-wrap;"></pre>
   </div>
@@ -64,12 +65,13 @@
   var CELL_SIZE = 56;  // px; must match #board's grid-template-columns/rows
   var ANIM_MS = 350;
 
-  var boardEl, statusEl, newGameBtn, pdnEl;
+  var boardEl, statusEl, newGameBtn, selfPlayBtn, pdnEl;
   var selected = null;   // selected source square (1-32), or null
   var legalDestinations = [];  // legal 'to' squares for the selected piece
   var boardState = {};   // square (1-32) -> { color: 'W'|'B', king: bool }
   var sideToMove = 'B';
   var gameOver = false;
+  var selfPlayMode = false;  // true while the engine is playing both sides
   var lastFrom = null, lastTo = null;  // last-moved squares, for highlighting
   var lastMoveClearTimer = null;
   var LAST_MOVE_HIGHLIGHT_MS = 900;  // how long the from/to highlight lingers
@@ -88,7 +90,20 @@
 
   function announceGameOver(loserSide) {
     gameOver = true;
-    statusEl.textContent = loserSide === 'B' ? 'Game over — engine wins!' : 'Game over — you win!';
+    if (selfPlayMode) {
+      statusEl.textContent = 'Game over — ' + (loserSide === 'B' ? 'White' : 'Black') + ' wins!';
+    } else {
+      statusEl.textContent = loserSide === 'B' ? 'Game over — engine wins!' : 'Game over — you win!';
+    }
+  }
+
+  function announceDraw() {
+    gameOver = true;
+    statusEl.textContent = 'Game over — draw.';
+  }
+
+  function isDrawResponse(resp) {
+    return /^draw$/m.test(resp || '');
   }
 
   function sideHasPieces(color) {
@@ -260,12 +275,16 @@
       }
     }
     if (!gameOver) {
-      statusEl.textContent = sideToMove === 'B' ? 'Your move (Black)' : "Engine's move (White)…";
+      if (selfPlayMode) {
+        statusEl.textContent = (sideToMove === 'B' ? 'Black' : 'White') + ' to move (self-play)…';
+      } else {
+        statusEl.textContent = sideToMove === 'B' ? 'Your move (Black)' : "Engine's move (White)…";
+      }
     }
   }
 
   function onCellClick(e) {
-    if (gameOver || sideToMove !== 'B') return;
+    if (gameOver || selfPlayMode || sideToMove !== 'B') return;
     var sq = parseInt(e.currentTarget.dataset.sq, 10);
     var piece = boardState[sq];
 
@@ -299,6 +318,10 @@
       render();
       return;
     }
+    if (isDrawResponse(resp)) {
+      applyMoveAndAnimate(from, to, announceDraw);
+      return;
+    }
 
     applyMoveAndAnimate(from, to, function () {
       if (gameOver || sideToMove !== 'W') return;
@@ -320,9 +343,13 @@
         return;
       }
       var mm = /^(\d+)[-x](\d+)/.exec(best);
-      cmd('move ' + best);
+      var moveResp = cmd('move ' + best);
       if (!mm) { refreshState(); return; }
       var moveFrom = parseInt(mm[1], 10), moveTo = parseInt(mm[2], 10);
+      if (isDrawResponse(moveResp)) {
+        applyMoveAndAnimate(moveFrom, moveTo, announceDraw);
+        return;
+      }
       applyMoveAndAnimate(moveFrom, moveTo, function () {
         if (gameOver || sideToMove !== 'B') return;
         if (!sideHasPieces('B') || !hasLegalMoves()) announceGameOver('B');
@@ -330,8 +357,63 @@
     }, 400);
   }
 
+  // Drives one half-move of an engine-vs-engine game, then schedules the
+  // next one, for as long as selfPlayMode stays on and the game isn't over.
+  function autoStep() {
+    if (!selfPlayMode || gameOver) return;
+    var side = sideToMove;
+    setTimeout(function () {
+      if (!selfPlayMode || gameOver) return;
+      var resp = cmd('go movetime 500');
+      var m = /bestmove\s+(\S+)/.exec(resp);
+      var best = m ? m[1] : 'none';
+      if (best === 'none') {
+        announceGameOver(side);
+        return;
+      }
+      var mm = /^(\d+)[-x](\d+)/.exec(best);
+      var moveResp = cmd('move ' + best);
+      var drawn = isDrawResponse(moveResp);
+
+      var afterMove = function () {
+        if (drawn) {
+          announceDraw();
+          return;
+        }
+        if (!selfPlayMode || gameOver) return;
+        var next = sideToMove;
+        if (!sideHasPieces(next) || !hasLegalMoves()) {
+          announceGameOver(next);
+          return;
+        }
+        autoStep();
+      };
+
+      if (mm) {
+        applyMoveAndAnimate(parseInt(mm[1], 10), parseInt(mm[2], 10), afterMove);
+      } else {
+        refreshState();
+        afterMove();
+      }
+    }, 400);
+  }
+
+  function toggleSelfPlay() {
+    selfPlayMode = !selfPlayMode;
+    selfPlayBtn.textContent = selfPlayMode ? 'Stop Self-Play' : 'Self-Play';
+    if (selfPlayMode) {
+      clearSelection();
+      render();
+      if (!gameOver) autoStep();
+    } else {
+      render();
+    }
+  }
+
   function newGame() {
     if (lastMoveClearTimer) { clearTimeout(lastMoveClearTimer); lastMoveClearTimer = null; }
+    selfPlayMode = false;
+    selfPlayBtn.textContent = 'Self-Play';
     gameOver = false;
     selected = null;
     legalDestinations = [];
@@ -346,8 +428,11 @@
     statusEl = document.getElementById('status');
     pdnEl = document.getElementById('pdnDebug');
     newGameBtn = document.getElementById('newGameBtn');
+    selfPlayBtn = document.getElementById('selfPlayBtn');
     newGameBtn.disabled = false;
+    selfPlayBtn.disabled = false;
     newGameBtn.addEventListener('click', newGame);
+    selfPlayBtn.addEventListener('click', toggleSelfPlay);
     newGame();
   }
 </script>

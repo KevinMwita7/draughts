@@ -1,7 +1,9 @@
 #include "draughts/search.h"
 
 #include <chrono>
+#include <vector>
 
+#include "draughts/draw.h"
 #include "draughts/eval.h"
 #include "draughts/movegen.h"
 
@@ -14,6 +16,7 @@ struct State {
   Evaluator& eval;
   uint64_t nodes = 0;
   bool stopped = false;
+  std::vector<uint64_t> path;  // hashes along the current search line
 };
 
 Score negamax(Position& pos, int depth, Score alpha, Score beta, State& st) {
@@ -28,6 +31,9 @@ Score negamax(Position& pos, int depth, Score alpha, Score beta, State& st) {
   }
   ++st.nodes;
 
+  if (is_reversible_draw(pos)) return SCORE_DRAW;
+  if (count_occurrences(pos.hash, st.path) >= 2) return SCORE_DRAW;
+
   if (depth == 0) return st.eval.evaluate(pos);
 
   MoveList moves;
@@ -37,7 +43,9 @@ Score negamax(Position& pos, int depth, Score alpha, Score beta, State& st) {
 
   for (int i = 0; i < moves.count; ++i) {
     pos.do_move(moves[i]);
+    st.path.push_back(pos.hash);
     Score score = -negamax(pos, depth - 1, -beta, -alpha, st);
+    st.path.pop_back();
     pos.undo_move(moves[i]);
 
     if (st.stopped) return SCORE_NONE;
@@ -75,7 +83,9 @@ SearchResult search(Position& pos, const SearchParams& params, Evaluator& eval,
 
     for (int i = 0; i < root_moves.count; ++i) {
       pos.do_move(root_moves[i]);
+      st.path.push_back(pos.hash);
       Score score = -negamax(pos, depth - 1, -SCORE_INF, -alpha, st);
+      st.path.pop_back();
       pos.undo_move(root_moves[i]);
 
       if (st.stopped) break;
