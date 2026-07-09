@@ -172,13 +172,17 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       p.switch_time_ms = &ponder_switch_ms_;
     }
     Position pos_copy = pos;
-    auto run_search = [this, pos_copy, p, &out]() mutable {
-      SearchResult r = search(pos_copy, p, *eval, [&](const SearchResult& ri) {
-        std::lock_guard<std::mutex> lk(out_mutex_);
-        out << "info depth " << ri.depth << " score " << ri.score << " nodes "
-            << ri.nodes << " time " << ri.elapsed_ms << " move "
-            << move_to_string(ri.best_move) << '\n';
-      });
+    std::vector<uint64_t> history_copy = history;
+    auto run_search = [this, pos_copy, history_copy, p, &out]() mutable {
+      SearchResult r = search(
+          pos_copy, p, *eval,
+          [&](const SearchResult& ri) {
+            std::lock_guard<std::mutex> lk(out_mutex_);
+            out << "info depth " << ri.depth << " score " << ri.score
+                << " nodes " << ri.nodes << " time " << ri.elapsed_ms
+                << " move " << move_to_string(ri.best_move) << '\n';
+          },
+          history_copy);
       std::lock_guard<std::mutex> lk(out_mutex_);
       out << "bestmove "
           << (is_null(r.best_move) ? "none" : move_to_string(r.best_move))

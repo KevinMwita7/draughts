@@ -228,6 +228,40 @@ TEST_F(SearchTest, ReversibleRuleForcesDrawAtCutoff) {
 }
 
 // ============================================================================
+// game_history (real-game repetition seeded into search)
+// ============================================================================
+
+// Black has an extra man parked on the promotion rank (no forward squares
+// left, so it has zero legal moves — same trick as TerminalPosition tests
+// above) plus its one king at sq0 (one quiet neighbour, sq4): Black's only
+// legal move in the whole position is that forced king shuffle. A
+// non-SCORE_DRAW score can therefore only mean the material edge came
+// through untouched by draw detection.
+TEST_F(SearchTest, NoGameHistory_ForcedLineIsNotDrawn) {
+  Position pos = make_pos(sq_bb(28), sq_bb(0), 0, sq_bb(31), BLACK);
+  SearchParams params;
+  params.max_depth = 1;  // Black's only move: king sq0 -> sq4.
+  EXPECT_GT(search(pos, params, eval).score, 0);
+}
+
+// The position reached by Black's only move is seeded into game_history, as
+// if the real game already visited it once before. Even though nothing
+// repeats within the search's own lookahead, the search should recognize
+// that playing this forced move would recreate a position already seen in
+// the real game and score it as a draw despite Black's material edge.
+TEST_F(SearchTest, GameHistorySeedsRepetitionDraw) {
+  Position pos = make_pos(sq_bb(28), sq_bb(0), 0, sq_bb(31), BLACK);
+  Position after_move =
+      make_pos(sq_bb(28), sq_bb(4), 0, sq_bb(31), WHITE);
+  std::vector<uint64_t> game_history = {after_move.hash};
+
+  SearchParams params;
+  params.max_depth = 1;
+  EXPECT_EQ(search(pos, params, eval, nullptr, game_history).score,
+            SCORE_DRAW);
+}
+
+// ============================================================================
 // InfoCallback
 // ============================================================================
 

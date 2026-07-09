@@ -61,7 +61,7 @@ Score negamax(Position& pos, int depth, Score alpha, Score beta, State& st) {
 }  // namespace
 
 SearchResult search(Position& pos, const SearchParams& params, Evaluator& eval,
-                    InfoCallback cb) {
+                    InfoCallback cb, const std::vector<uint64_t>& game_history) {
   SearchResult result;
 
   MoveList root_moves;
@@ -74,6 +74,7 @@ SearchResult search(Position& pos, const SearchParams& params, Evaluator& eval,
   int max_depth = (params.max_depth > 0) ? params.max_depth : 64;
   auto start = std::chrono::steady_clock::now();
   State st{params, eval};
+  st.path = game_history;
   bool switched = false;
   std::chrono::steady_clock::time_point switch_start;
 

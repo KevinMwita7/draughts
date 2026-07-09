@@ -129,7 +129,7 @@
     var resp = cmd('moves');
     legalDestinations = resp.split(/\s+/).reduce(function (acc, tok) {
       var mm = /^(\d+)[-x](\d+)$/.exec(tok);
-      if (mm && parseInt(mm[1], 10) === sq) acc.push(parseInt(mm[2], 10));
+      if (mm && Number.parseInt(mm[1], 10) === sq) acc.push(Number.parseInt(mm[2], 10));
       return acc;
     }, []);
   }
@@ -161,8 +161,8 @@
         if (!tok) return;
         var king = false;
         if (tok.charAt(0) === 'K') { king = true; tok = tok.slice(1); }
-        var sq = parseInt(tok, 10);
-        if (!isNaN(sq)) state.board[sq] = { color: color, king: king };
+        var sq = Number.parseInt(tok, 10);
+        if (!Number.isNaN(sq)) state.board[sq] = { color: color, king: king };
       });
     }
     return state;
@@ -285,7 +285,7 @@
 
   function onCellClick(e) {
     if (gameOver || selfPlayMode || sideToMove !== 'B') return;
-    var sq = parseInt(e.currentTarget.dataset.sq, 10);
+    var sq = Number.parseInt(e.currentTarget.dataset.sq, 10);
     var piece = boardState[sq];
 
     if (selected === null) {
@@ -345,7 +345,7 @@
       var mm = /^(\d+)[-x](\d+)/.exec(best);
       var moveResp = cmd('move ' + best);
       if (!mm) { refreshState(); return; }
-      var moveFrom = parseInt(mm[1], 10), moveTo = parseInt(mm[2], 10);
+      var moveFrom = Number.parseInt(mm[1], 10), moveTo = Number.parseInt(mm[2], 10);
       if (isDrawResponse(moveResp)) {
         applyMoveAndAnimate(moveFrom, moveTo, announceDraw);
         return;
@@ -390,7 +390,7 @@
       };
 
       if (mm) {
-        applyMoveAndAnimate(parseInt(mm[1], 10), parseInt(mm[2], 10), afterMove);
+        applyMoveAndAnimate(Number.parseInt(mm[1], 10), Number.parseInt(mm[2], 10), afterMove);
       } else {
         refreshState();
         afterMove();

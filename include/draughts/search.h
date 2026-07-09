@@ -2,6 +2,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 #include "position.h"
 
@@ -34,7 +35,12 @@ using InfoCallback = std::function<void(const SearchResult&)>;
 // Entry point
 // Iterative-deepening alpha-beta search.
 // pos is modified during search (do_move / undo_move) but restored on return.
+// game_history is the sequence of position hashes already reached in the
+// real game (see TextProtocol::history); it seeds the search's own
+// repetition check so a line that revisits an earlier real-game position is
+// recognized as a draw during search, not just after the move is played.
 SearchResult search(Position& pos, const SearchParams& params, Evaluator& eval,
-                    InfoCallback cb = nullptr);
+                    InfoCallback cb = nullptr,
+                    const std::vector<uint64_t>& game_history = {});
 
 }  // namespace draughts
