@@ -6,9 +6,11 @@
 #include <string>
 
 #include "draughts/bitboard.h"
+#include "draughts/draw.h"
 #include "draughts/eval_material.h"
 #include "draughts/notation.h"
 #include "draughts/position.h"
+#include "draughts/zobrist.h"
 
 using namespace draughts;
 
@@ -34,6 +36,8 @@ static int count_substr(const std::string& s, const std::string& needle) {
 
 class TextProtocolTest : public ::testing::Test {
  protected:
+  void SetUp() override { zobrist::init(); }
+
   MaterialEval eval;
   TextProtocol proto{eval};
 };
@@ -354,4 +358,67 @@ TEST_F(TextProtocolTest, PonderHitThenStopEmitsBestmove) {
   std::ostringstream out;
   proto.run(in, out);
   EXPECT_TRUE(contains(out.str(), "bestmove"));
+}
+
+// ---- draw detection ------------------------------------------------------
+
+// Black king shuffles 13<->18, White king shuffles 31<->27. Neither king can
+// ever threaten a capture against the other (they stay rows apart), so this
+// is a pure, endlessly repeatable cycle: after 4 plies the shuffle's start
+// position recurs for the 2nd time, and after 8 plies for the 3rd.
+static const char* kShuffleStart = "B:WK31:BK13";
+static const char* kShuffleMoves[8] = {
+    "13-18", "31-27", "18-13", "27-31",
+    "13-18", "31-27", "18-13", "27-31",
+};
+
+TEST_F(TextProtocolTest, OrdinaryMoveDoesNotReportDraw) {
+  EXPECT_FALSE(contains(run_cmd(proto, "move 9-13"), "draw"));
+}
+
+TEST_F(TextProtocolTest, CaptureDoesNotReportDraw) {
+  run_cmd(proto, "position B:W13:B9");
+  EXPECT_FALSE(contains(run_cmd(proto, "move 9x18"), "draw"));
+}
+
+TEST_F(TextProtocolTest, NoProgressRuleReportsDrawAtCutoff) {
+  proto.pos.reversible = MAX_REVERSIBLE_PLIES - 1;
+  EXPECT_TRUE(contains(run_cmd(proto, "move 9-13"), "draw"));
+}
+
+TEST_F(TextProtocolTest, RepetitionReportsDrawOnThirdOccurrenceOnly) {
+  run_cmd(proto, std::string("position ") + kShuffleStart);
+  for (int i = 0; i < 8; ++i) {
+    std::string out = run_cmd(proto, std::string("move ") + kShuffleMoves[i]);
+    if (i < 7)
+      EXPECT_FALSE(contains(out, "draw")) << "premature draw at ply " << i + 1;
+    else
+      EXPECT_TRUE(contains(out, "draw"));
+  }
+}
+
+TEST_F(TextProtocolTest, PositionCommandReplaysMovesAndDetectsRepetition) {
+  std::string cmd_line = std::string("position ") + kShuffleStart + " moves";
+  for (int i = 0; i < 8; ++i) cmd_line += std::string(" ") + kShuffleMoves[i];
+  EXPECT_TRUE(contains(run_cmd(proto, cmd_line), "draw"));
+}
+
+TEST_F(TextProtocolTest, PositionCommandMovesReplayStopsAtBadToken) {
+  // "1-2" isn't a legal move from the position reached after "13-18", so
+  // replay must stop there rather than applying it or crashing.
+  std::string cmd_line =
+      std::string("position ") + kShuffleStart + " moves 13-18 1-2";
+  run_cmd(proto, cmd_line);
+  EXPECT_EQ(to_pdn_position(proto.pos), "W:WK31:BK18");
+}
+
+TEST_F(TextProtocolTest, PositionCommandWithoutMovesResetsHistory) {
+  run_cmd(proto, std::string("position ") + kShuffleStart);
+  for (int i = 0; i < 4; ++i)
+    run_cmd(proto, std::string("move ") + kShuffleMoves[i]);
+  // 4 plies back at the shuffle's starting position — a fresh 'position'
+  // command must not remember that as a prior occurrence.
+  run_cmd(proto, std::string("position ") + kShuffleStart);
+  std::string out = run_cmd(proto, std::string("move ") + kShuffleMoves[0]);
+  EXPECT_FALSE(contains(out, "draw"));
 }

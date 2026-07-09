@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "draughts/bitboard.h"
+#include "draughts/draw.h"
 #include "draughts/eval_material.h"
 #include "draughts/position.h"
 #include "draughts/zobrist.h"
@@ -196,6 +197,68 @@ TEST_F(SearchTest, Perspective_FlipsWhenSideChanges) {
   Score s_white = search(white_stm, params, eval).score;
   EXPECT_GT(s_black, 0);
   EXPECT_LT(s_white, 0);
+}
+
+// ============================================================================
+// No-progress (reversible-ply) draw rule
+// ============================================================================
+
+// Black has an extra king (a permanent material edge from a raw material
+// read), but all kings start far enough apart on an open board that no
+// capture is reachable within a couple of plies — so the reversible-ply
+// counter advances in lockstep with search depth on every branch. This
+// isolates the reversible-rule cutoff in negamax from ordinary material
+// scoring: below the cutoff the search still reports Black's material
+// edge; once a full ply pair pushes reversible to MAX_REVERSIBLE_PLIES,
+// every branch is forced to SCORE_DRAW regardless of that material edge.
+TEST_F(SearchTest, ReversibleRuleForcesDrawAtCutoff) {
+  // sq0: Black king, exactly one quiet neighbour (sq4).
+  // sq15: extra Black king, far from sq0 and sq31.
+  // sq31: White king, exactly one quiet neighbour (sq27).
+  Position pos = make_pos(0, sq_bb(0) | sq_bb(15), 0, sq_bb(31), BLACK);
+  pos.reversible = MAX_REVERSIBLE_PLIES - 2;
+
+  SearchParams below_cutoff;
+  below_cutoff.max_depth = 1;  // one Black ply: reversible -> MAX-1
+  EXPECT_GT(search(pos, below_cutoff, eval).score, 0);
+
+  SearchParams at_cutoff;
+  at_cutoff.max_depth = 2;  // + one White ply: reversible -> MAX on every leaf
+  EXPECT_EQ(search(pos, at_cutoff, eval).score, SCORE_DRAW);
+}
+
+// ============================================================================
+// game_history (real-game repetition seeded into search)
+// ============================================================================
+
+// Black has an extra man parked on the promotion rank (no forward squares
+// left, so it has zero legal moves — same trick as TerminalPosition tests
+// above) plus its one king at sq0 (one quiet neighbour, sq4): Black's only
+// legal move in the whole position is that forced king shuffle. A
+// non-SCORE_DRAW score can therefore only mean the material edge came
+// through untouched by draw detection.
+TEST_F(SearchTest, NoGameHistory_ForcedLineIsNotDrawn) {
+  Position pos = make_pos(sq_bb(28), sq_bb(0), 0, sq_bb(31), BLACK);
+  SearchParams params;
+  params.max_depth = 1;  // Black's only move: king sq0 -> sq4.
+  EXPECT_GT(search(pos, params, eval).score, 0);
+}
+
+// The position reached by Black's only move is seeded into game_history, as
+// if the real game already visited it once before. Even though nothing
+// repeats within the search's own lookahead, the search should recognize
+// that playing this forced move would recreate a position already seen in
+// the real game and score it as a draw despite Black's material edge.
+TEST_F(SearchTest, GameHistorySeedsRepetitionDraw) {
+  Position pos = make_pos(sq_bb(28), sq_bb(0), 0, sq_bb(31), BLACK);
+  Position after_move =
+      make_pos(sq_bb(28), sq_bb(4), 0, sq_bb(31), WHITE);
+  std::vector<uint64_t> game_history = {after_move.hash};
+
+  SearchParams params;
+  params.max_depth = 1;
+  EXPECT_EQ(search(pos, params, eval, nullptr, game_history).score,
+            SCORE_DRAW);
 }
 
 // ============================================================================

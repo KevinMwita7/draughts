@@ -1,9 +1,11 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 #include <iosfwd>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "position.h"
 #include "search.h"
@@ -23,8 +25,12 @@ struct Protocol {
 //   ucinewgame              — reset to start position
 //   isready                 — respond readyok
 //   setoption name <n> ...  — parsed and ignored
-//   position <pdn>          — set board from PDN position string
-//   move <move>             — make a move (PDN notation)
+//   position <pdn> [moves ...] — set board from PDN position string,
+//                                 optionally replaying a move list to
+//                                 rebuild game history
+//   move <move>             — make a move (PDN notation); prints "draw" if
+//                              the resulting position is drawn (repetition
+//                              or no-progress rule)
 //   moves                   — list all legal moves for the side to move
 //   go [depth N] [movetime N] [ponder] — search and print best move
 //   stop                    — stop searching
@@ -39,6 +45,8 @@ struct TextProtocol : Protocol {
   Position pos;
   SearchParams params;
   Evaluator* eval;  // non-owning; must outlive TextProtocol
+  std::vector<uint64_t> history;  // hashes of every position in this game,
+                                   // used for draw detection
 
   explicit TextProtocol(Evaluator& e);
   ~TextProtocol();

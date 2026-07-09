@@ -5,6 +5,7 @@
 #include <string>
 
 #include "draughts/bitboard.h"
+#include "draughts/draw.h"
 #include "draughts/eval.h"
 #include "draughts/movegen.h"
 #include "draughts/notation.h"
@@ -59,6 +60,7 @@ void print_board(const Position& pos, std::ostream& out) {
 
 TextProtocol::TextProtocol(Evaluator& e) : pos(Position::start_position()) {
   eval = &e;
+  history = {pos.hash};
 }
 
 TextProtocol::~TextProtocol() { stop_search(); }
@@ -95,19 +97,39 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
     stop_search();
     pos = Position::start_position();
     params = SearchParams{};
+    history = {pos.hash};
   } else if (cmd == "isready") {
     std::lock_guard<std::mutex> lk(out_mutex_);
     out << "readyok\n";
   } else if (cmd == "setoption") {
     // parsed and ignored
   } else if (cmd == "position") {
-    pos = parse_pdn_position(rest);
+    std::istringstream ss(rest);
+    std::string pdn_tok;
+    ss >> pdn_tok;
+    pos = parse_pdn_position(pdn_tok);
+    history = {pos.hash};
+    std::string tok;
+    if (ss >> tok && tok == "moves") {
+      while (ss >> tok) {
+        Move m = parse_move(tok, pos);
+        if (is_null(m)) break;  // stop replay at first bad token
+        pos.do_move(m);
+        history.push_back(pos.hash);
+      }
+      if (is_reversible_draw(pos) || count_occurrences(pos.hash, history) >= 3)
+        out << "draw\n";
+    }
   } else if (cmd == "move") {
     Move m = parse_move(rest, pos);
-    if (is_null(m))
+    if (is_null(m)) {
       out << "error: illegal move\n";
-    else
+    } else {
       pos.do_move(m);
+      history.push_back(pos.hash);
+      if (is_reversible_draw(pos) || count_occurrences(pos.hash, history) >= 3)
+        out << "draw\n";
+    }
   } else if (cmd == "stop") {
     stop_search();
   } else if (cmd == "ponderhit") {
@@ -150,13 +172,17 @@ void TextProtocol::handle_command(const std::string& line, std::ostream& out) {
       p.switch_time_ms = &ponder_switch_ms_;
     }
     Position pos_copy = pos;
-    auto run_search = [this, pos_copy, p, &out]() mutable {
-      SearchResult r = search(pos_copy, p, *eval, [&](const SearchResult& ri) {
-        std::lock_guard<std::mutex> lk(out_mutex_);
-        out << "info depth " << ri.depth << " score " << ri.score << " nodes "
-            << ri.nodes << " time " << ri.elapsed_ms << " move "
-            << move_to_string(ri.best_move) << '\n';
-      });
+    std::vector<uint64_t> history_copy = history;
+    auto run_search = [this, pos_copy, history_copy, p, &out]() mutable {
+      SearchResult r = search(
+          pos_copy, p, *eval,
+          [&](const SearchResult& ri) {
+            std::lock_guard<std::mutex> lk(out_mutex_);
+            out << "info depth " << ri.depth << " score " << ri.score
+                << " nodes " << ri.nodes << " time " << ri.elapsed_ms
+                << " move " << move_to_string(ri.best_move) << '\n';
+          },
+          history_copy);
       std::lock_guard<std::mutex> lk(out_mutex_);
       out << "bestmove "
           << (is_null(r.best_move) ? "none" : move_to_string(r.best_move))
