@@ -66,6 +66,11 @@
           "CMAKE_BUILD_TYPE": "Debug"
         },
         "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+      },
+      {
+        "name": "wasm-debug-local",
+        "displayName": "WebAssembly Debug (local)",
+        "inherits": "wasm-debug"
       }
     ]
 }
